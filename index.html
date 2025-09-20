@@ -1,206 +1,334 @@
 <!doctype html>
+
 <html lang="pt-BR">
+
 <head>
+
   <meta charset="utf-8" />
+
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+
   <title>SuportAdd</title>
+
   <style>
+
     :root{--bg:#f8f9fa;--card:#ffffff;--text:#212529;--accent:#007bff;--border:#dee2e6;--muted:#6c757d}
+
     body{font-family:system-ui,sans-serif;margin:0;padding:2rem;display:grid;place-items:center;min-height:100vh;background-color:var(--bg);color:var(--text)}
+
     .app{display:grid;grid-template-columns:250px 1fr;grid-template-rows:1fr;gap:1.5rem;width:100%;max-width:1200px;height:calc(100vh - 4rem)}
+
     .card{background-color:var(--card);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:1.5rem;display:flex;flex-direction:column;gap:1.5rem}
+
     .sidebar{display:flex;flex-direction:column;gap:1.5rem;overflow-y:auto}
+
     .logo{font-weight:bold;font-size:1.5rem;text-align:center;padding-bottom:1rem;border-bottom:1px solid var(--border)}
+
     .pages{display:flex;flex-direction:column;gap:0.5rem;flex-grow:1;overflow-y:auto}
+
     .page-item{padding:0.75rem;border-radius:8px;cursor:pointer;background-color:transparent;color:var(--text);border:none;text-align:left}
+
     .page-item:hover{background-color:var(--bg)}
+
     .page-item.active{background-color:var(--accent);color:#fff}
+
     .page-item.active:hover{filter:brightness(90%)}
+
     .main{display:grid;grid-template-rows:auto 1fr;height:100%;overflow:auto}
+
     header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:1rem;margin-bottom:1rem;flex-wrap:wrap;gap:1rem}
+
     .controls{display:flex;gap:0.5rem;flex-wrap:wrap}
+
     .btn{padding:0.75rem 1rem;border:1px solid var(--border);border-radius:8px;background-color:var(--accent);color:#fff;cursor:pointer;font-size:0.9rem;text-decoration:none;display:inline-block;text-align:center}
+
     .btn:hover{filter:brightness(90%)}
+
     .danger{background-color:#dc3545}
+
     .danger:hover{filter:brightness(90%)}
+
     .blocks{display:grid;grid-template-columns:1fr;gap:1rem}
+
     .text-block{padding:1rem;border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;gap:0.5rem;position:relative}
+
     .block-controls{display:flex;gap:0.5rem;margin-top:20px}
+
     .small{font-size:13px;color:var(--muted)}
+
     .danger{color:#ff7b7b}
+
     input[type=file]{display:none}
+
     @media(max-width:860px){
+
       .app{grid-template-columns:1fr;grid-auto-rows:auto;overflow:auto;height:auto}
+
       .sidebar{order:2}
+
       .blocks, .attachments{grid-template-columns:1fr}
+
     }
+
   </style>
+
 </head>
+
 <body>
+
   <div class="app">
+
     <aside class="sidebar card">
+
       <div class="logo">Suport - ADD </div>
+
       <div class="pages" id="pages"></div>
+
       <div class="new-page">
+
         <input id="newPageInput" class="btn" placeholder="Nome da página" />
+
         <button id="addPageBtn" class="btn">Criar</button>
+
       </div>
+
     </aside>
 
+
     <main class="main">
+
       <div class="card">
+
         <header>
+
           <h1 id="pageTitle">Página</h1>
+
           <div class="controls">
+
             <label class="btn">
+
               <span class="small">Adicionar arquivo</span>
+
               <input id="fileInput" type="file" multiple />
+
             </label>
+
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
+
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
+
           </div>
+
         </header>
 
-        <section class="blocks" id="blocksContainer"></section>
+
+        <section class="blocks" id="blocksContainer">
+
+          </section>
+
       </div>
+
     </main>
+
   </div>
 
+
   <script type="module">
+
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+
     // 🔑 Suas credenciais Supabase
+
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
+
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+
     const pagesEl = document.getElementById('pages');
+
     const blocksContainer = document.getElementById('blocksContainer');
+
     const pageTitle = document.getElementById('pageTitle');
+
     const newPageInput = document.getElementById('newPageInput');
+
     const addPageBtn = document.getElementById('addPageBtn');
 
+
     let pages = [];
+
     let activePageId = null;
 
+
     // --- Funções de autenticação ---
+
     async function checkAuth() {
+
       const { data: { user } } = await supabase.auth.getUser();
+
       if (!user) {
+
         window.location.href = 'auth.html';
+
       } else {
+
         await loadPages();
+
       }
+
     }
+
 
     // --- Páginas ---
+
     async function loadPages() {
+
       const { data: { user } } = await supabase.auth.getUser();
+
       if (!user) return;
 
+
       const { data, error } = await supabase
+
         .from('pages')
+
         .select('*')
+
         .eq('user_id', user.id) // ✅ CORREÇÃO: Filtra as páginas pelo ID do usuário
+
         .order('id', { ascending: true });
 
+
       if (error) {
+
         console.error('Erro ao carregar páginas:', error.message);
+
       } else {
+
         pages = data;
+
         renderPages();
+
         if (pages.length > 0) {
+
           setActivePage(pages[0].id);
+
         } else {
+
           // Lógica para quando não houver páginas
+
         }
+
       }
+
     }
+
 
     function renderPages() {
+
       pagesEl.innerHTML = '';
+
       pages.forEach(page => {
+
         const pageEl = document.createElement('button');
+
         pageEl.className = 'page-item' + (page.id === activePageId ? ' active' : '');
+
         pageEl.textContent = page.title;
+
         pageEl.onclick = () => setActivePage(page.id);
+
         pagesEl.appendChild(pageEl);
+
       });
+
     }
+
 
     async function addPage() {
+
       const newPageName = newPageInput.value.trim();
+
       if (newPageName === '') {
+
         return;
+
       }
 
+
       const { data: { user } } = await supabase.auth.getUser();
+
       if (!user) {
+
         alert("Você precisa estar logado para adicionar uma página.");
+
         return;
+
       }
+
+
+      // ✅ CORREÇÃO: Adiciona o user_id à inserção
 
       const { data, error } = await supabase
+
         .from('pages')
+
         .insert([
+
           { title: newPageName, user_id: user.id }
+
         ])
+
         .select();
 
+
       if (error) {
+
         console.error('Erro ao adicionar página:', error.message);
+
         alert('Erro: ' + error.message);
+
       } else {
+
         newPageInput.value = '';
+
         await loadPages();
+
         if (data && data.length > 0) {
+
           setActivePage(data[0].id);
+
         }
+
       }
+
     }
 
-    // --- Anexos ---
-    async function addFileAttachments(fileList, blockId){
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("Você precisa estar logado para adicionar um arquivo.");
-        return;
-      }
 
-      const arr = Array.from(fileList);
-      for(const file of arr){
-        const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
-        let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
-        if(upError) { alert(upError.message); continue; }
-        
-        const { error: insertError } = await supabase.from('attachments').insert({
-          page_id: activePageId,
-          block_id: blockId,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          storage_path: path,
-          user_id: user.id // ✅ CORREÇÃO: Adiciona o user_id à inserção
-        });
-
-        if (insertError) {
-          console.error("Erro ao inserir anexo:", insertError.message);
-          alert("Erro ao inserir anexo: " + insertError.message);
-        }
-      }
-      renderBlocks();
-    }
-    
     function setActivePage(pageId) {
+
       activePageId = pageId;
+
       const activePage = pages.find(p => p.id === pageId);
+
       pageTitle.textContent = activePage ? activePage.title : 'Página';
+
       renderPages();
+
     }
+
 
     // --- Event Listeners ---
+
     document.addEventListener('DOMContentLoaded', checkAuth);
+
     addPageBtn.addEventListener('click', addPage);
+
   </script>
+
 </body>
-</html>
+
+</html> 
