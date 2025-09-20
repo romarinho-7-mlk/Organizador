@@ -101,7 +101,7 @@
       const { data, error } = await supabase
         .from('pages')
         .select('*')
-        .eq('user_id', user.id) // ✅ CORREÇÃO: Filtra as páginas pelo ID do usuário
+        .eq('user_id', user.id)
         .order('id', { ascending: true });
 
       if (error) {
@@ -180,7 +180,7 @@
           size: file.size,
           type: file.type,
           storage_path: path,
-          user_id: user.id // ✅ CORREÇÃO: Adiciona o user_id à inserção
+          user_id: user.id
         });
 
         if (insertError) {
