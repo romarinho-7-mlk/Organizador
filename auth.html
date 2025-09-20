@@ -33,7 +33,7 @@
         </div>
         <button type="submit">Entrar</button>
       </form>
-      <div class="toggle-link" onclick="toggleForm()">Não tem uma conta? Registrar</div>
+      <div class="toggle-link">Não tem uma conta? Registrar</div>
     </div>
     
     <div id="auth-success" class="content">
@@ -57,6 +57,7 @@
     const authSuccess = document.getElementById('auth-success');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
+    const toggleLink = document.querySelector('.toggle-link'); // Seleciona o elemento
 
     let isSignIn = true;
 
@@ -64,8 +65,7 @@
       isSignIn = !isSignIn;
       const h2 = authForm.querySelector('h2');
       const button = authForm.querySelector('button');
-      const toggleLink = authForm.querySelector('.toggle-link');
-
+      
       if (isSignIn) {
         h2.textContent = 'Entrar';
         button.textContent = 'Entrar';
@@ -116,6 +116,9 @@
     });
 
     signInForm.addEventListener('submit', handleAuth);
+
+    // ✅ Esta é a linha de código nova
+    toggleLink.addEventListener('click', toggleForm);
   </script>
 </body>
 </html>
