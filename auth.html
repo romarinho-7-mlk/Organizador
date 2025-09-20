@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Autenticação</title>
+  <style>
+    :root{--bg:#f8f9fa;--card:#ffffff;--text:#212529;--accent:#007bff;--border:#dee2e6;}
+    body{font-family:system-ui,sans-serif;margin:0;padding:2rem;display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:var(--bg);color:var(--text);}
+    .container{width:100%;max-width:400px;padding:2rem;background-color:var(--card);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);display:flex;flex-direction:column;gap:1.5rem;}
+    h2{margin:0;text-align:center;color:var(--text);}
+    .form-group{display:flex;flex-direction:column;gap:0.5rem;}
+    input{padding:0.75rem;border:1px solid var(--border);border-radius:8px;font-size:1rem;width:100%;}
+    button{padding:0.75rem;border:none;border-radius:8px;font-size:1rem;cursor:pointer;background-color:var(--accent);color:#fff;}
+    button:hover{filter:brightness(90%);}
+    .toggle-link{text-align:center;font-size:0.9rem;cursor:pointer;color:var(--accent);}
+    .logout-btn{width:100%;background-color:#dc3545;}
+    .content{display:none;text-align:center;gap:1rem;}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="auth-form">
+      <h2>Entrar</h2>
+      <form id="signInForm">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Senha</label>
+          <input type="password" id="password" required>
+        </div>
+        <button type="submit">Entrar</button>
+      </form>
+      <div class="toggle-link" onclick="toggleForm()">Não tem uma conta? Registrar</div>
+    </div>
+    
+    <div id="auth-success" class="content">
+      <h2>Bem-vindo!</h2>
+      <p>Você está logado. Agora você pode ir para a sua página principal.</p>
+      <button class="logout-btn" onclick="logout()">Sair</button>
+      <a href="index.html" style="text-decoration: none;"><button>Ir para a Página Principal</button></a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // 🔑 Suas credenciais Supabase
+    const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const authForm = document.getElementById('auth-form');
+    const signInForm = document.getElementById('signInForm');
+    const authSuccess = document.getElementById('auth-success');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+
+    let isSignIn = true;
+
+    function toggleForm() {
+      isSignIn = !isSignIn;
+      const h2 = authForm.querySelector('h2');
+      const button = authForm.querySelector('button');
+      const toggleLink = authForm.querySelector('.toggle-link');
+
+      if (isSignIn) {
+        h2.textContent = 'Entrar';
+        button.textContent = 'Entrar';
+        toggleLink.textContent = 'Não tem uma conta? Registrar';
+      } else {
+        h2.textContent = 'Registrar';
+        button.textContent = 'Registrar';
+        toggleLink.textContent = 'Já tem uma conta? Entrar';
+      }
+    }
+
+    async function handleAuth(event) {
+      event.preventDefault();
+      const email = emailInput.value;
+      const password = passwordInput.value;
+
+      if (isSignIn) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          alert('Erro ao entrar: ' + error.message);
+        }
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) {
+          alert('Erro ao registrar: ' + error.message);
+        } else {
+          alert('Registro realizado com sucesso! Verifique seu e-mail para confirmar.');
+        }
+      }
+    }
+
+    async function logout() {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro ao sair:', error.message);
+      }
+    }
+
+    // Monitora o estado de autenticação
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        authForm.style.display = 'none';
+        authSuccess.style.display = 'flex';
+      } else {
+        authForm.style.display = 'flex';
+        authSuccess.style.display = 'none';
+      }
+    });
+
+    signInForm.addEventListener('submit', handleAuth);
+  </script>
+</body>
+</html>
