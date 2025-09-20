@@ -102,7 +102,7 @@
       const { data, error } = await supabase
         .from('pages')
         .select('*')
-        .eq('user_id', user.id) // Filtra as páginas pelo ID do usuário
+        .eq('user_id', user.id) // ✅ CORREÇÃO: Filtra as páginas pelo ID do usuário
         .order('id', { ascending: true });
 
       if (error) {
@@ -141,7 +141,7 @@
         return;
       }
 
-      // Adiciona o user_id à inserção
+      // ✅ CORREÇÃO: Adiciona o user_id à inserção
       const { data, error } = await supabase
         .from('pages')
         .insert([
