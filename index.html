@@ -4,298 +4,35 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SuportAdd</title>
-  <script type="module">
-    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-    // 🔑 Suas credenciais Supabase
-    const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    const pagesEl = document.getElementById('pages');
-    const blocksContainer = document.getElementById('blocksContainer');
-    const pageTitle = document.getElementById('pageTitle');
-
-    let pages = [];
-    let activePageId = null;
-    
-    // Proteção de rota: Verifique se o usuário está logado ao carregar a página
-    supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_OUT') {
-            window.location.href = 'auth.html';
-        }
-    });
-
-    async function checkUserAndLoad() {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            window.location.href = 'auth.html';
-        } else {
-            loadPages();
-        }
-    }
-
-    // --- Páginas ---
-    async function loadPages(){
-      const { data, error } = await supabase.from('pages').select('*').order('created_at', { ascending:false });
-      if(error) console.error(error);
-      pages = data || [];
-      if(!activePageId && pages.length) activePageId = pages[0].id;
-      renderPages();
-      render();
-    }
-
-    async function createPage(title){
-      const { data, error } = await supabase.from('pages').insert({ title }).select().single();
-      if(error) return alert(error.message);
-      pages.unshift(data);
-      activePageId = data.id;
-      renderPages();
-      render();
-    }
-
-    async function deletePage(id){
-      if(!confirm("Excluir página?")) return;
-      const { error } = await supabase.from('pages').delete().eq('id', id);
-      if(error) return alert(error.message);
-      pages = pages.filter(p=>p.id!==id);
-      activePageId = pages[0]?.id || null;
-      renderPages();
-      render();
-    }
-
-    function renderPages(){
-      pagesEl.innerHTML = '';
-      pages.forEach(p=>{
-        const div = document.createElement('div');
-        div.className = 'page' + (p.id===activePageId? ' active':'');
-        div.textContent = p.title;
-        div.onclick = ()=>{ activePageId=p.id; render(); };
-        pagesEl.appendChild(div);
-      });
-    }
-
-    // --- Blocos ---
-    async function loadBlocks(){
-      if(!activePageId) return [];
-      const { data, error } = await supabase.from('blocks').select('*').eq('page_id', activePageId).order('created_at');
-      if(error) console.error(error);
-      return data || [];
-    }
-
-    async function addTextBlock(){
-      const { data, error } = await supabase.from('blocks').insert({ page_id: activePageId, title:"Novo tópico", content:'' }).select().single();
-      if(error) return alert(error.message);
-      render();
-    }
-
-    async function updateBlock(id, fields){
-      await supabase.from('blocks').update(fields).eq('id', id);
-    }
-
-    async function deleteBlock(id){
-      await supabase.from('blocks').delete().eq('id', id);
-      render();
-    }
-
-    // --- Anexos ---
-    async function addFileAttachments(fileList, blockId){
-      const arr = Array.from(fileList);
-
-      // Obtém o usuário logado
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        alert("Você precisa estar logado para adicionar um arquivo.");
-        return;
-      }
-
-      for(const file of arr){
-        const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
-        let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
-        if(upError) { alert(upError.message); continue; }
-        await supabase.from('attachments').insert({
-          page_id: activePageId,
-          block_id: blockId,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          storage_path: path,
-          user_id: user.id // <--- Esta linha é a correção!
-        });
-      }
-      renderBlocks();
-    }
-
-    // --- Render Blocos com anexos ---
-    async function renderBlocks(){
-      blocksContainer.innerHTML = '';
-      const blocks = await loadBlocks();
-
-      for(const b of blocks){
-        const card = document.createElement('div');
-        card.className = 'block';
-
-        // Título
-        const titleInput = document.createElement('input');
-        titleInput.type = "text";
-        titleInput.value = b.title || "Novo tópico";
-        titleInput.className = "title-input";
-        titleInput.oninput = e=> updateBlock(b.id, { title: e.target.value });
-        card.appendChild(titleInput);
-
-        // Texto
-        const ta = document.createElement('textarea');
-        ta.value = b.content || '';
-        ta.oninput = e=> updateBlock(b.id, { content: e.target.value });
-        card.appendChild(ta);
-
-        // Botão de upload
-        const fileLabel = document.createElement('label');
-        fileLabel.className = 'btn';
-        fileLabel.textContent = 'Adicionar arquivo';
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.multiple = true;
-        fileInput.style.display = 'none';
-        fileInput.onchange = e=> addFileAttachments(e.target.files, b.id);
-        fileLabel.appendChild(fileInput);
-        card.appendChild(fileLabel);
-
-        // Listar anexos
-        const { data: blockAttachments } = await supabase
-          .from('attachments')
-          .select('*')
-          .eq('block_id', b.id)
-          .order('created_at');
-
-        const attachList = document.createElement('div');
-        attachList.className = 'attachments';
-        blockAttachments?.forEach(a=>{
-          const item = document.createElement('div');
-          item.className = 'attach-item';
-          item.innerHTML = `<strong>${a.name}</strong> (${Math.round(a.size/1024)} KB)`;
-
-          const openBtn = document.createElement('button');
-          openBtn.className = 'btn';
-          openBtn.textContent = 'Abrir';
-          openBtn.onclick = async ()=>{
-            const { data } = supabase.storage.from('uploads').getPublicUrl(a.storage_path);
-            window.open(data.publicUrl, '_blank');
-          };
-          item.appendChild(openBtn);
-
-          const rmBtn = document.createElement('button');
-          rmBtn.className = 'btn danger';
-          rmBtn.textContent = 'Remover';
-          rmBtn.onclick = async ()=>{
-            if(!confirm('Remover anexo?')) return;
-            await supabase.from('attachments').delete().eq('id', a.id);
-            await supabase.storage.from('uploads').remove([a.storage_path]);
-            renderBlocks();
-          };
-          item.appendChild(rmBtn);
-
-          attachList.appendChild(item);
-        });
-        card.appendChild(attachList);
-
-        // Botão remover bloco
-        const del = document.createElement('button');
-        del.className = 'btn danger';
-        del.textContent = 'Remover bloco';
-        del.onclick = ()=> deleteBlock(b.id);
-        card.appendChild(del);
-
-        blocksContainer.appendChild(card);
-      }
-    }
-
-    // --- Render principal ---
-    async function render(){
-      const p = pages.find(x=>x.id===activePageId);
-      if(!p){ pageTitle.textContent = 'Nenhuma página'; return; }
-      pageTitle.textContent = p.title;
-      renderBlocks();
-    }
-
-    // Eventos
-    document.getElementById('addPageBtn').onclick = ()=>{
-      const v = document.getElementById('newPageInput').value.trim();
-      createPage(v||'Nova página');
-      document.getElementById('newPageInput').value='';
-    };
-    document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
-    document.getElementById('addTextBtn').onclick = ()=> addTextBlock();
-
-    // Início
-    checkUserAndLoad();
-  </script>
   <style>
-    :root{--bg:#3e4754;--card:#e70909c4;--muted:#070505;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#000000;background:linear-gradient(180deg,#fefff6 0%, hsl(0, 0%, 93%) 100%)}
-    .app{display:grid;grid-template-columns:280px 1fr;gap:20px;height:100vh;padding:20px}
-    .sidebar{background:var(--card);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
-    .logo{font-weight:700;color:var(--accent);font-size:18px}
-    .pages{flex:1;overflow:auto}
-    .page{background:var(--glass);padding:8px;border-radius:8px;margin-bottom:8px;cursor:pointer}
-    .page.active{outline:2px solid rgba(255, 3, 3, 0.069)}
-    .new-page{display:flex;gap:8px}
-    .btn{background:transparent;border:1px solid rgba(247, 0, 0, 0.168);padding:8px;border-radius:8px;color:var(--muted);cursor:pointer}
-    .main{padding:18px;}
-    .card{background:linear-gradient(180deg, rgba(255, 223, 223, 0.04), rgb(255, 255, 255));padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
-    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-    h1{margin:0;font-size:20px}
-    .controls{display:flex;gap:8px}
-
-    /* GRID */
-    .blocks {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
-
-    .block, .attach-item {
-      background:#fff;
-      padding:12px;
-      border-radius:12px;
-      box-shadow:0 2px 6px rgba(0,0,0,0.1);
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
-
-    .block textarea {
-      width:100%;
-      height:120px;
-      background:transparent;
-      border:1px solid #ddd;
-      border-radius:8px;
-      padding:6px;
-      resize:vertical;
-      outline:none
-    }
-
-    .title-input {
-      font-weight:bold;
-      border:1px solid #ccc;
-      padding:6px;
-      border-radius:8px;
-    }
-
-    .attachments {
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-    }
-
+    :root{--bg:#f8f9fa;--card:#ffffff;--text:#212529;--accent:#007bff;--border:#dee2e6;--muted:#6c757d}
+    body{font-family:system-ui,sans-serif;margin:0;padding:2rem;display:grid;place-items:center;min-height:100vh;background-color:var(--bg);color:var(--text)}
+    .app{display:grid;grid-template-columns:250px 1fr;grid-template-rows:1fr;gap:1.5rem;width:100%;max-width:1200px;height:calc(100vh - 4rem)}
+    .card{background-color:var(--card);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:1.5rem;display:flex;flex-direction:column;gap:1.5rem}
+    .sidebar{display:flex;flex-direction:column;gap:1.5rem;overflow-y:auto}
+    .logo{font-weight:bold;font-size:1.5rem;text-align:center;padding-bottom:1rem;border-bottom:1px solid var(--border)}
+    .pages{display:flex;flex-direction:column;gap:0.5rem;flex-grow:1;overflow-y:auto}
+    .page-item{padding:0.75rem;border-radius:8px;cursor:pointer;background-color:transparent;color:var(--text);border:none;text-align:left}
+    .page-item:hover{background-color:var(--bg)}
+    .page-item.active{background-color:var(--accent);color:#fff}
+    .page-item.active:hover{filter:brightness(90%)}
+    .main{display:grid;grid-template-rows:auto 1fr;height:100%;overflow:auto}
+    header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:1rem;margin-bottom:1rem;flex-wrap:wrap;gap:1rem}
+    .controls{display:flex;gap:0.5rem;flex-wrap:wrap}
+    .btn{padding:0.75rem 1rem;border:1px solid var(--border);border-radius:8px;background-color:var(--accent);color:#fff;cursor:pointer;font-size:0.9rem;text-decoration:none;display:inline-block;text-align:center}
+    .btn:hover{filter:brightness(90%)}
+    .danger{background-color:#dc3545}
+    .danger:hover{filter:brightness(90%)}
+    .blocks{display:grid;grid-template-columns:1fr;gap:1rem}
+    .text-block{padding:1rem;border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;gap:0.5rem;position:relative}
+    .block-controls{display:flex;gap:0.5rem;margin-top:20px}
     .small{font-size:13px;color:var(--muted)}
     .danger{color:#ff7b7b}
     input[type=file]{display:none}
     @media(max-width:860px){
       .app{grid-template-columns:1fr;grid-auto-rows:auto;overflow:auto;height:auto}
       .sidebar{order:2}
-      .blocks{grid-template-columns:1fr}
+      .blocks, .attachments{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -315,14 +52,125 @@
         <header>
           <h1 id="pageTitle">Página</h1>
           <div class="controls">
+            <label class="btn">
+              <span class="small">Adicionar arquivo</span>
+              <input id="fileInput" type="file" multiple />
+            </label>
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
           </div>
         </header>
 
-        <section class="blocks" id="blocksContainer"></section>
+        <section class="blocks" id="blocksContainer">
+          </section>
       </div>
     </main>
   </div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // 🔑 Suas credenciais Supabase
+    const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const pagesEl = document.getElementById('pages');
+    const blocksContainer = document.getElementById('blocksContainer');
+    const pageTitle = document.getElementById('pageTitle');
+    const newPageInput = document.getElementById('newPageInput');
+    const addPageBtn = document.getElementById('addPageBtn');
+
+    let pages = [];
+    let activePageId = null;
+
+    // --- Funções de autenticação ---
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.href = 'auth.html';
+      } else {
+        await loadPages();
+      }
+    }
+
+    // --- Páginas ---
+    async function loadPages() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('pages')
+        .select('*')
+        .eq('user_id', user.id) // ✅ CORREÇÃO: Filtra as páginas pelo ID do usuário
+        .order('id', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao carregar páginas:', error.message);
+      } else {
+        pages = data;
+        renderPages();
+        if (pages.length > 0) {
+          setActivePage(pages[0].id);
+        } else {
+          // Lógica para quando não houver páginas
+        }
+      }
+    }
+
+    function renderPages() {
+      pagesEl.innerHTML = '';
+      pages.forEach(page => {
+        const pageEl = document.createElement('button');
+        pageEl.className = 'page-item' + (page.id === activePageId ? ' active' : '');
+        pageEl.textContent = page.title;
+        pageEl.onclick = () => setActivePage(page.id);
+        pagesEl.appendChild(pageEl);
+      });
+    }
+
+    async function addPage() {
+      const newPageName = newPageInput.value.trim();
+      if (newPageName === '') {
+        return;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("Você precisa estar logado para adicionar uma página.");
+        return;
+      }
+
+      // ✅ CORREÇÃO: Adiciona o user_id à inserção
+      const { data, error } = await supabase
+        .from('pages')
+        .insert([
+          { title: newPageName, user_id: user.id }
+        ])
+        .select();
+
+      if (error) {
+        console.error('Erro ao adicionar página:', error.message);
+        alert('Erro: ' + error.message);
+      } else {
+        newPageInput.value = '';
+        await loadPages();
+        if (data && data.length > 0) {
+          setActivePage(data[0].id);
+        }
+      }
+    }
+
+    function setActivePage(pageId) {
+      activePageId = pageId;
+      const activePage = pages.find(p => p.id === pageId);
+      pageTitle.textContent = activePage ? activePage.title : 'Página';
+      renderPages();
+    }
+
+    // --- Event Listeners ---
+    document.addEventListener('DOMContentLoaded', checkAuth);
+    addPageBtn.addEventListener('click', addPage);
+  </script>
 </body>
 </html>
