@@ -14,11 +14,26 @@
 
     const pagesEl = document.getElementById('pages');
     const blocksContainer = document.getElementById('blocksContainer');
-    const attachmentsEl = document.getElementById('attachments');
     const pageTitle = document.getElementById('pageTitle');
 
     let pages = [];
     let activePageId = null;
+    
+    // Proteção de rota: Verifique se o usuário está logado ao carregar a página
+    supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') {
+            window.location.href = 'auth.html';
+        }
+    });
+
+    async function checkUserAndLoad() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            window.location.href = 'auth.html';
+        } else {
+            loadPages();
+        }
+    }
 
     // --- Páginas ---
     async function loadPages(){
@@ -83,47 +98,8 @@
       render();
     }
 
-    async function renderBlocks(){
-      blocksContainer.innerHTML = '';
-      const blocks = await loadBlocks();
-      blocks.forEach(b=>{
-        const card = document.createElement('div');
-        card.className = 'block';
-
-        // Campo de título
-        const titleInput = document.createElement('input');
-        titleInput.type = "text";
-        titleInput.value = b.title || "Novo tópico";
-        titleInput.className = "title-input";
-        titleInput.oninput = e=> updateBlock(b.id, { title: e.target.value });
-        card.appendChild(titleInput);
-
-        // Área de texto
-        const ta = document.createElement('textarea');
-        ta.value = b.content || '';
-        ta.oninput = e=> updateBlock(b.id, { content: e.target.value });
-        card.appendChild(ta);
-
-        // Botão remover
-        const del = document.createElement('button');
-        del.className = 'btn danger';
-        del.textContent = 'Remover bloco';
-        del.onclick = ()=> deleteBlock(b.id);
-        card.appendChild(del);
-
-        blocksContainer.appendChild(card);
-      });
-    }
-
     // --- Anexos ---
-    async function loadAttachments(){
-      if(!activePageId) return [];
-      const { data, error } = await supabase.from('attachments').select('*').eq('page_id', activePageId).order('created_at');
-      if(error) console.error(error);
-      return data || [];
-    }
-
-    async function addFileAttachments(fileList){
+    async function addFileAttachments(fileList, blockId){
       const arr = Array.from(fileList);
 
       // Obtém o usuário logado
@@ -134,59 +110,104 @@
       }
 
       for(const file of arr){
-        const path = `${activePageId}/${Date.now()}_${file.name}`;
+        const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
         let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
         if(upError) { alert(upError.message); continue; }
         await supabase.from('attachments').insert({
           page_id: activePageId,
+          block_id: blockId,
           name: file.name,
           size: file.size,
           type: file.type,
           storage_path: path,
-          user_id: user.id
+          user_id: user.id // <--- Esta linha é a correção!
         });
       }
-      renderAttachments();
+      renderBlocks();
     }
 
-    async function renderAttachments(){
-      attachmentsEl.innerHTML = '';
-      const list = await loadAttachments();
-      list.forEach(a=>{
+    // --- Render Blocos com anexos ---
+    async function renderBlocks(){
+      blocksContainer.innerHTML = '';
+      const blocks = await loadBlocks();
+
+      for(const b of blocks){
         const card = document.createElement('div');
-        card.className = 'attach-item';
+        card.className = 'block';
 
-        const title = document.createElement('h3');
-        title.textContent = "Arquivo";
-        card.appendChild(title);
+        // Título
+        const titleInput = document.createElement('input');
+        titleInput.type = "text";
+        titleInput.value = b.title || "Novo tópico";
+        titleInput.className = "title-input";
+        titleInput.oninput = e=> updateBlock(b.id, { title: e.target.value });
+        card.appendChild(titleInput);
 
-        const info = document.createElement('div');
-        info.innerHTML = `<strong>${a.name}</strong><br><span class='small'>${Math.round(a.size/1024)} KB</span>`;
-        card.appendChild(info);
+        // Texto
+        const ta = document.createElement('textarea');
+        ta.value = b.content || '';
+        ta.oninput = e=> updateBlock(b.id, { content: e.target.value });
+        card.appendChild(ta);
 
-        const actions = document.createElement('div');
-        const dl = document.createElement('button');
-        dl.className='btn';
-        dl.textContent='Abrir';
-        dl.onclick = async ()=>{
-          const { data } = supabase.storage.from('uploads').getPublicUrl(a.storage_path);
-          window.open(data.publicUrl, '_blank');
-        };
-        const rm = document.createElement('button');
-        rm.className='btn danger';
-        rm.textContent='Remover';
-        rm.onclick = async ()=>{
-          if(!confirm('Remover anexo?')) return;
-          await supabase.from('attachments').delete().eq('id', a.id);
-          await supabase.storage.from('uploads').remove([a.storage_path]);
-          renderAttachments();
-        };
-        actions.appendChild(dl);
-        actions.appendChild(rm);
+        // Botão de upload
+        const fileLabel = document.createElement('label');
+        fileLabel.className = 'btn';
+        fileLabel.textContent = 'Adicionar arquivo';
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true;
+        fileInput.style.display = 'none';
+        fileInput.onchange = e=> addFileAttachments(e.target.files, b.id);
+        fileLabel.appendChild(fileInput);
+        card.appendChild(fileLabel);
 
-        card.appendChild(actions);
-        attachmentsEl.appendChild(card);
-      });
+        // Listar anexos
+        const { data: blockAttachments } = await supabase
+          .from('attachments')
+          .select('*')
+          .eq('block_id', b.id)
+          .order('created_at');
+
+        const attachList = document.createElement('div');
+        attachList.className = 'attachments';
+        blockAttachments?.forEach(a=>{
+          const item = document.createElement('div');
+          item.className = 'attach-item';
+          item.innerHTML = `<strong>${a.name}</strong> (${Math.round(a.size/1024)} KB)`;
+
+          const openBtn = document.createElement('button');
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Abrir';
+          openBtn.onclick = async ()=>{
+            const { data } = supabase.storage.from('uploads').getPublicUrl(a.storage_path);
+            window.open(data.publicUrl, '_blank');
+          };
+          item.appendChild(openBtn);
+
+          const rmBtn = document.createElement('button');
+          rmBtn.className = 'btn danger';
+          rmBtn.textContent = 'Remover';
+          rmBtn.onclick = async ()=>{
+            if(!confirm('Remover anexo?')) return;
+            await supabase.from('attachments').delete().eq('id', a.id);
+            await supabase.storage.from('uploads').remove([a.storage_path]);
+            renderBlocks();
+          };
+          item.appendChild(rmBtn);
+
+          attachList.appendChild(item);
+        });
+        card.appendChild(attachList);
+
+        // Botão remover bloco
+        const del = document.createElement('button');
+        del.className = 'btn danger';
+        del.textContent = 'Remover bloco';
+        del.onclick = ()=> deleteBlock(b.id);
+        card.appendChild(del);
+
+        blocksContainer.appendChild(card);
+      }
     }
 
     // --- Render principal ---
@@ -195,7 +216,6 @@
       if(!p){ pageTitle.textContent = 'Nenhuma página'; return; }
       pageTitle.textContent = p.title;
       renderBlocks();
-      renderAttachments();
     }
 
     // Eventos
@@ -206,13 +226,9 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     document.getElementById('addTextBtn').onclick = ()=> addTextBlock();
-    document.getElementById('fileInput').onchange = e=> addFileAttachments(e.target.files);
-
-    document.getElementById('dropZone').addEventListener('drop', e=>{ e.preventDefault(); if(e.dataTransfer?.files) addFileAttachments(e.dataTransfer.files); });
-    document.getElementById('dropZone').addEventListener('dragover', e=> e.preventDefault());
 
     // Início
-    loadPages();
+    checkUserAndLoad();
   </script>
   <style>
     :root{--bg:#3e4754;--card:#e70909c4;--muted:#070505;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
@@ -233,7 +249,7 @@
     .controls{display:flex;gap:8px}
 
     /* GRID */
-    .blocks, .attachments {
+    .blocks {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 16px;
@@ -267,14 +283,19 @@
       border-radius:8px;
     }
 
-    .file-drop{border:2px dashed rgba(255,255,255,0.2);padding:18px;border-radius:10px;text-align:center;color:var(--muted);margin-top:20px}
+    .attachments {
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
     .small{font-size:13px;color:var(--muted)}
     .danger{color:#ff7b7b}
     input[type=file]{display:none}
     @media(max-width:860px){
       .app{grid-template-columns:1fr;grid-auto-rows:auto;overflow:auto;height:auto}
       .sidebar{order:2}
-      .blocks, .attachments{grid-template-columns:1fr}
+      .blocks{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -294,21 +315,12 @@
         <header>
           <h1 id="pageTitle">Página</h1>
           <div class="controls">
-            <label class="btn">
-              <span class="small">Adicionar arquivo</span>
-              <input id="fileInput" type="file" multiple />
-            </label>
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
           </div>
         </header>
 
         <section class="blocks" id="blocksContainer"></section>
-
-        <section>
-          <div class="file-drop" id="dropZone">Arraste arquivos aqui ou use "Adicionar arquivo"</div>
-          <div class="attachments" id="attachments"></div>
-        </section>
       </div>
     </main>
   </div>
