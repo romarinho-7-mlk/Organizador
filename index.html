@@ -125,6 +125,14 @@
 
     async function addFileAttachments(fileList){
       const arr = Array.from(fileList);
+
+      // Obtém o usuário logado
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        alert("Você precisa estar logado para adicionar um arquivo.");
+        return;
+      }
+
       for(const file of arr){
         const path = `${activePageId}/${Date.now()}_${file.name}`;
         let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
@@ -134,7 +142,8 @@
           name: file.name,
           size: file.size,
           type: file.type,
-          storage_path: path
+          storage_path: path,
+          user_id: user.id
         });
       }
       renderAttachments();
