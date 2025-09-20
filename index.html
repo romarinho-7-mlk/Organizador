@@ -141,7 +141,6 @@
         return;
       }
 
-      // ✅ CORREÇÃO: Adiciona o user_id à inserção
       const { data, error } = await supabase
         .from('pages')
         .insert([
@@ -159,6 +158,38 @@
           setActivePage(data[0].id);
         }
       }
+    }
+
+    // --- Anexos ---
+    async function addFileAttachments(fileList, blockId){
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("Você precisa estar logado para adicionar um arquivo.");
+        return;
+      }
+
+      const arr = Array.from(fileList);
+      for(const file of arr){
+        const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
+        let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
+        if(upError) { alert(upError.message); continue; }
+        
+        const { error: insertError } = await supabase.from('attachments').insert({
+          page_id: activePageId,
+          block_id: blockId,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          storage_path: path,
+          user_id: user.id // ✅ CORREÇÃO: Adiciona o user_id à inserção
+        });
+
+        if (insertError) {
+          console.error("Erro ao inserir anexo:", insertError.message);
+          alert("Erro ao inserir anexo: " + insertError.message);
+        }
+      }
+      renderBlocks();
     }
 
     function setActivePage(pageId) {
