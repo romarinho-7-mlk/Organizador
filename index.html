@@ -79,6 +79,9 @@
     const pageTitle = document.getElementById('pageTitle');
     const newPageInput = document.getElementById('newPageInput');
     const addPageBtn = document.getElementById('addPageBtn');
+    const addTextBtn = document.getElementById('addTextBtn');
+    const deletePageBtn = document.getElementById('deletePageBtn');
+    const fileInput = document.getElementById('fileInput');
 
     let pages = [];
     let activePageId = null;
@@ -112,7 +115,7 @@
         if (pages.length > 0) {
           setActivePage(pages[0].id);
         } else {
-          // Lógica para quando não houver páginas
+          blocksContainer.innerHTML = 'Nenhuma página';
         }
       }
     }
@@ -159,48 +162,144 @@
       }
     }
 
+    async function deletePage() {
+        if (!activePageId) return;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            alert("Você precisa estar logado para excluir uma página.");
+            return;
+        }
+
+        const { error } = await supabase
+            .from('pages')
+            .delete()
+            .eq('id', activePageId)
+            .eq('user_id', user.id); // Garante que apenas o proprietário pode excluir
+
+        if (error) {
+            console.error('Erro ao excluir página:', error.message);
+            alert('Erro ao excluir página: ' + error.message);
+        } else {
+            activePageId = null;
+            await loadPages();
+        }
+    }
+
+    // --- Blocos de Texto ---
+    async function addTextBlock() {
+      if (!activePageId) return;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("Você precisa estar logado para adicionar um bloco de texto.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from('blocks')
+        .insert({
+          page_id: activePageId,
+          content: 'Novo tópico',
+          user_id: user.id // Adiciona o user_id para obedecer a RLS
+        });
+
+      if (error) {
+        console.error('Erro ao adicionar bloco:', error.message);
+        alert('Erro ao adicionar bloco: ' + error.message);
+      } else {
+        await renderBlocks();
+      }
+    }
+
+    async function renderBlocks() {
+        if (!activePageId) {
+            blocksContainer.innerHTML = 'Nenhuma página selecionada.';
+            return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: blocks, error } = await supabase
+            .from('blocks')
+            .select('*')
+            .eq('page_id', activePageId)
+            .eq('user_id', user.id) // Filtra os blocos pelo ID do usuário
+            .order('id', { ascending: true });
+
+        if (error) {
+            console.error('Erro ao carregar blocos:', error.message);
+            return;
+        }
+
+        blocksContainer.innerHTML = '';
+        if (blocks.length === 0) {
+            blocksContainer.innerHTML = 'Nenhum bloco de texto ou arquivo adicionado.';
+            return;
+        }
+        
+        blocks.forEach(block => {
+            const blockEl = document.createElement('div');
+            blockEl.className = 'text-block';
+            blockEl.innerHTML = `
+                <textarea class="title-input">${block.content}</textarea>
+                <div class="block-controls">
+                    <button class="btn danger" onclick="deleteBlock('${block.id}')">Remover bloco</button>
+                </div>
+            `;
+            blocksContainer.appendChild(blockEl);
+        });
+    }
+
     // --- Anexos ---
-    async function addFileAttachments(fileList, blockId){
+    async function addFileAttachments(fileList){
+      if (!activePageId) {
+        alert('Selecione uma página para adicionar arquivos.');
+        return;
+      }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         alert("Você precisa estar logado para adicionar um arquivo.");
         return;
       }
-
       const arr = Array.from(fileList);
       for(const file of arr){
-        const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
+        const path = `${activePageId}/${Date.now()}_${file.name}`;
         let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
         if(upError) { alert(upError.message); continue; }
         
         const { error: insertError } = await supabase.from('attachments').insert({
           page_id: activePageId,
-          block_id: blockId,
           name: file.name,
           size: file.size,
           type: file.type,
           storage_path: path,
           user_id: user.id
         });
-
         if (insertError) {
           console.error("Erro ao inserir anexo:", insertError.message);
           alert("Erro ao inserir anexo: " + insertError.message);
         }
       }
-      renderBlocks();
+      renderBlocks(); // renderizar os blocos novamente para incluir os anexos
     }
-    
+
+    // --- Set Active Page ---
     function setActivePage(pageId) {
       activePageId = pageId;
       const activePage = pages.find(p => p.id === pageId);
       pageTitle.textContent = activePage ? activePage.title : 'Página';
       renderPages();
+      renderBlocks(); // Carrega os blocos da nova página ativa
     }
 
     // --- Event Listeners ---
     document.addEventListener('DOMContentLoaded', checkAuth);
     addPageBtn.addEventListener('click', addPage);
+    addTextBtn.addEventListener('click', addTextBlock);
+    deletePageBtn.addEventListener('click', deletePage);
+    fileInput.addEventListener('change', (e) => addFileAttachments(e.target.files));
   </script>
 </body>
 </html>
