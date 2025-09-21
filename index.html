@@ -40,7 +40,11 @@
     }
     
     .block {
-      cursor: pointer; /* Adicionado para indicar que é clicável */
+      cursor: pointer;
+    }
+    
+    .block h3, .block p {
+      margin: 0;
     }
 
     .block textarea {
@@ -51,7 +55,7 @@
       border-radius:8px;
       padding:6px;
       resize:vertical;
-      outline:none
+      outline:none;
     }
 
     .title-input {
@@ -152,28 +156,6 @@
     </div>
   </dialog>
 
-  <dialog id="editBlockModal">
-    <div class="modal-content">
-      <h2>Editar Bloco de Texto</h2>
-      <input type="hidden" id="editBlockId" />
-      <input type="text" id="editModalTitle" placeholder="Novo tópico" class="title-input" />
-      <textarea id="editModalContent" placeholder="Adicionar texto aqui"></textarea>
-      
-      <div class="file-upload">
-        <label class="btn">
-          Adicionar arquivos
-          <input type="file" id="editModalFiles" multiple style="display: none;" />
-        </label>
-        <div id="editModalFileList"></div>
-      </div>
-      
-      <div class="modal-buttons">
-        <button id="closeEditModalBtn" class="btn">Cancelar</button>
-        <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
-      </div>
-    </div>
-  </dialog>
-
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -192,14 +174,6 @@
     const modalContentTextarea = document.getElementById('modalContent');
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
-
-    // Elementos do Modal de Edição
-    const editBlockModal = document.getElementById('editBlockModal');
-    const editBlockIdInput = document.getElementById('editBlockId');
-    const editModalTitleInput = document.getElementById('editModalTitle');
-    const editModalContentTextarea = document.getElementById('editModalContent');
-    const editModalFilesInput = document.getElementById('editModalFiles');
-    const editModalFileListDiv = document.getElementById('editModalFileList');
 
     let pages = [];
     let activePageId = null;
@@ -288,26 +262,8 @@
       renderBlocks();
     }
     
-    async function handleEditBlock() {
-      const blockId = editBlockIdInput.value;
-      const newTitle = editModalTitleInput.value;
-      const newContent = editModalContentTextarea.value;
-      const files = editModalFilesInput.files;
-
-      const { error } = await supabase.from('blocks')
-        .update({ title: newTitle, content: newContent })
-        .eq('id', blockId);
-      
-      if (error) {
-        return alert(error.message);
-      }
-      
-      if (files.length > 0) {
-        await addFileAttachments(files, blockId);
-      }
-      
-      editBlockModal.close();
-      renderBlocks();
+    async function updateBlock(id, fields){
+      await supabase.from('blocks').update(fields).eq('id', id);
     }
 
     async function deleteBlock(id){
@@ -347,16 +303,32 @@
       for(const b of blocks){
         const card = document.createElement('div');
         card.className = 'block';
-        card.onclick = () => openEditBlockModal(b); // Adicionado para abrir o modal de edição
 
-        // Título e Conteúdo (exibição)
-        const titleDisplay = document.createElement('h3');
-        titleDisplay.textContent = b.title;
-        card.appendChild(titleDisplay);
+        // Título - Agora um input para edição direta
+        const titleInput = document.createElement('input');
+        titleInput.type = "text";
+        titleInput.value = b.title || "Novo tópico";
+        titleInput.className = "title-input";
+        titleInput.oninput = e => updateBlock(b.id, { title: e.target.value });
+        card.appendChild(titleInput);
         
-        const contentDisplay = document.createElement('p');
-        contentDisplay.textContent = b.content;
-        card.appendChild(contentDisplay);
+        // Conteúdo - Agora um textarea para edição direta
+        const contentTextarea = document.createElement('textarea');
+        contentTextarea.value = b.content || '';
+        contentTextarea.oninput = e => updateBlock(b.id, { content: e.target.value });
+        card.appendChild(contentTextarea);
+
+        // Botão de upload de arquivos para o bloco
+        const fileLabel = document.createElement('label');
+        fileLabel.className = 'btn';
+        fileLabel.textContent = 'Adicionar arquivo';
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.multiple = true;
+        fileInput.style.display = 'none';
+        fileInput.onchange = e => addFileAttachments(e.target.files, b.id);
+        fileLabel.appendChild(fileInput);
+        card.appendChild(fileLabel);
 
         // Listar anexos
         const { data: blockAttachments } = await supabase
@@ -376,7 +348,7 @@
           openBtn.className = 'btn';
           openBtn.textContent = 'Abrir';
           openBtn.onclick = async (e)=>{
-            e.stopPropagation(); // Impede que o modal de edição abra ao clicar no botão
+            e.stopPropagation();
             const { data } = supabase.storage.from('uploads').getPublicUrl(a.storage_path);
             window.open(data.publicUrl, '_blank');
           };
@@ -442,43 +414,6 @@
       }
     });
 
-    // --- Funções do Modal de Edição ---
-    async function openEditBlockModal(block) {
-      editBlockIdInput.value = block.id;
-      editModalTitleInput.value = block.title;
-      editModalContentTextarea.value = block.content;
-      
-      // Limpar e popular a lista de anexos
-      editModalFileListDiv.innerHTML = '';
-      const { data: attachments } = await supabase
-        .from('attachments')
-        .select('*')
-        .eq('block_id', block.id)
-        .order('created_at');
-        
-      attachments.forEach(a => {
-        const fileItem = document.createElement('span');
-        fileItem.textContent = a.name;
-        editModalFileListDiv.appendChild(fileItem);
-      });
-
-      editBlockModal.showModal();
-    }
-    
-    function closeEditBlockModal() {
-      editBlockModal.close();
-    }
-    
-    editModalFilesInput.addEventListener('change', () => {
-      editModalFileListDiv.innerHTML = '';
-      const files = editModalFilesInput.files;
-      for (const file of files) {
-        const fileItem = document.createElement('span');
-        fileItem.textContent = file.name;
-        editModalFileListDiv.appendChild(fileItem);
-      }
-    });
-
     // Eventos
     document.getElementById('addPageBtn').onclick = ()=>{
       const v = document.getElementById('newPageInput').value.trim();
@@ -487,13 +422,10 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     
-    // Eventos dos Modais
+    // Eventos do Modal
     document.getElementById('addTextBtn').onclick = openNewBlockModal;
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
-
-    document.getElementById('closeEditModalBtn').onclick = closeEditBlockModal;
-    document.getElementById('saveEditModalBtn').onclick = handleEditBlock;
 
     document.getElementById('logoutBtn').onclick = async () => {
       await supabase.auth.signOut();
