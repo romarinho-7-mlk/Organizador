@@ -171,4 +171,306 @@
       <div class="modal-buttons">
         <button id="closeEditModalBtn" class="btn">Fechar</button>
         <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
-        <button id="deleteBtn" class="btn danger">Excluir
+        <button id="deleteBtn" class="btn danger">Excluir Bloco</button>
+      </div>
+    </div>
+  </dialog>
+
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // 🔑 Suas credenciais Supabase
+    const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const pagesEl = document.getElementById('pages');
+    const blocksContainer = document.getElementById('blocksContainer');
+    const pageTitle = document.getElementById('pageTitle');
+    
+    // Elementos do Modal de Criação
+    const newBlockModal = document.getElementById('newBlockModal');
+    const modalTitleInput = document.getElementById('modalTitle');
+    const modalContentTextarea = document.getElementById('modalContent');
+    const modalFilesInput = document.getElementById('modalFiles');
+    const modalFileListDiv = document.getElementById('modalFileList');
+
+    // Novos elementos do Modal de Edição
+    const editBlockModal = document.getElementById('editBlockModal');
+    const editModalBlockId = document.getElementById('editModalBlockId');
+    const editModalTitleInput = document.getElementById('editModalTitleInput');
+    const editModalContentTextarea = document.getElementById('editModalContentTextarea');
+    const editModalFileList = document.getElementById('editModalFileList');
+    
+    // Adicionamos a barra de pesquisa
+    const searchBar = document.getElementById('searchBar');
+
+    let pages = [];
+    let activePageId = null;
+    let currentUser = null;
+    let currentBlocks = []; // Variável para armazenar todos os blocos da página atual
+
+    // --- Páginas ---
+    async function loadPages(){
+      if (!currentUser) return;
+      
+      const { data, error } = await supabase.from('pages').select('*').eq('user_id', currentUser.id).order('created_at', { ascending:false });
+      if(error) console.error(error);
+      pages = data || [];
+      
+      // Carrega o ID da página ativa do LocalStorage
+      const savedPageId = localStorage.getItem('activePageId');
+      if (savedPageId && pages.some(p => p.id === savedPageId)) {
+        activePageId = savedPageId;
+      } else if (pages.length) {
+        activePageId = pages[0].id;
+      } else {
+        activePageId = null;
+      }
+      
+      renderPages();
+      render();
+    }
+
+    async function createPage(title){
+      if (!currentUser) {
+        alert('Você precisa estar logado para criar uma página.');
+        return;
+      }
+      const { data, error } = await supabase.from('pages').insert({ title, user_id: currentUser.id }).select().single();
+      if(error) return alert(error.message);
+      pages.unshift(data);
+      activePageId = data.id;
+      localStorage.setItem('activePageId', activePageId); // Salva o novo ID
+      renderPages();
+      render();
+    }
+
+    async function deletePage(id){
+      if(!confirm("Excluir página?")) return;
+      const { error } = await supabase.from('pages').delete().eq('id', id);
+      if(error) return alert(error.message);
+      pages = pages.filter(p=>p.id!==id);
+      activePageId = pages[0]?.id || null;
+      if (activePageId) {
+        localStorage.setItem('activePageId', activePageId);
+      } else {
+        localStorage.removeItem('activePageId');
+      }
+      renderPages();
+      render();
+    }
+
+    function renderPages(){
+      pagesEl.innerHTML = '';
+      pages.forEach(p=>{
+        const div = document.createElement('div');
+        div.className = 'page' + (p.id===activePageId? ' active':'');
+        div.textContent = p.title;
+        div.onclick = ()=>{ 
+          activePageId=p.id; 
+          localStorage.setItem('activePageId', activePageId); // Salva o ID ao clicar
+          render(); 
+        };
+        pagesEl.appendChild(div);
+      });
+    }
+
+    // --- Blocos ---
+    async function loadBlocks(){
+      if(!activePageId) return [];
+      const { data, error } = await supabase.from('blocks').select('*').eq('page_id', activePageId).order('created_at');
+      if(error) console.error(error);
+      currentBlocks = data || []; // Armazena os blocos na variável global
+      return currentBlocks;
+    }
+    
+    // Função para lidar com a criação de um novo bloco via modal
+    async function handleNewBlock() {
+      if (!currentUser || !activePageId) {
+        alert('Você precisa estar logado e ter uma página selecionada para adicionar um bloco.');
+        return;
+      }
+      
+      const title = modalTitleInput.value.trim() || "Novo tópico";
+      const content = modalContentTextarea.value.trim() || '';
+      const files = modalFilesInput.files;
+
+      const { data, error } = await supabase.from('blocks').insert({
+        page_id: activePageId,
+        title: title,
+        content: content,
+        user_id: currentUser.id
+      }).select().single();
+
+      if (error) {
+        return alert(error.message);
+      }
+      
+      if (files.length > 0) {
+        await addFileAttachments(files, data.id);
+      }
+      
+      // Chama a função que fecha o modal e limpa os campos
+      closeNewBlockModal();
+      
+      renderBlocks(); // Recarrega os blocos
+    }
+
+    async function updateBlock(id, fields){
+      await supabase.from('blocks').update(fields).eq('id', id);
+    }
+
+    async function deleteBlock(id){
+      if(!confirm("Tem certeza que deseja excluir este bloco?")) return;
+      await supabase.from('blocks').delete().eq('id', id);
+      render();
+    }
+
+    // --- Anexos ---
+    async function addFileAttachments(fileList, blockId){
+      const arr = Array.from(fileList);
+      for(const file of arr){
+        const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
+        let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
+        if(upError) { alert(upError.message); continue; }
+        
+        const { error: attachError } = await supabase.from('attachments').insert({
+          page_id: activePageId,
+          block_id: blockId,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          storage_path: path,
+          user_id: currentUser.id
+        });
+        
+        if (attachError) {
+          alert('Erro ao inserir anexo: ' + attachError.message);
+        }
+      }
+    }
+
+    // --- Render Blocos com anexos (Função atualizada com pesquisa) ---
+    function renderBlocks(searchTerm = ''){
+      blocksContainer.innerHTML = '';
+      const blocksToRender = currentBlocks.filter(block => {
+        // Transforma o termo de busca e os textos do bloco em minúsculas para uma comparação sem distinção de maiúsculas/minúsculas
+        const lowerCaseSearch = searchTerm.toLowerCase();
+        const titleMatch = block.title.toLowerCase().includes(lowerCaseSearch);
+        const contentMatch = block.content.toLowerCase().includes(lowerCaseSearch);
+        return titleMatch || contentMatch;
+      });
+
+      blocksToRender.forEach(b => {
+        const card = document.createElement('div');
+        card.className = 'block';
+
+        // Não mais editável diretamente. Clique no bloco para abrir o modal.
+        card.innerHTML = `
+          <h3>${b.title}</h3>
+          <p>${b.content}</p>
+        `;
+        
+        // Adiciona o evento de clique para abrir o modal de edição
+        card.onclick = () => {
+          openEditModal(b);
+        };
+        
+        blocksContainer.appendChild(card);
+      });
+    }
+    
+    // --- Render principal (Função atualizada para a pesquisa) ---
+    async function render(){
+      const p = pages.find(x=>x.id===activePageId);
+      if(!p){ pageTitle.textContent = 'Nenhuma página'; return; }
+      pageTitle.textContent = p.title;
+      await loadBlocks(); // Garante que os blocos estão carregados antes de renderizar
+      renderBlocks(searchBar.value); // Chama a renderização com o valor atual da barra de pesquisa
+    }
+    
+    // --- Funções do Modal de Criação ---
+    function openNewBlockModal() {
+      newBlockModal.showModal();
+    }
+    function closeNewBlockModal() {
+      newBlockModal.close();
+      // Limpar os campos do modal
+      modalTitleInput.value = '';
+      modalContentTextarea.value = '';
+      modalFilesInput.value = null;
+      modalFileListDiv.innerHTML = '';
+    }
+    
+    // --- Funções do Modal de Edição ---
+    function openEditModal(blockData) {
+      editModalBlockId.value = blockData.id;
+      editModalTitleInput.value = blockData.title;
+      editModalContentTextarea.value = blockData.content;
+      editBlockModal.showModal();
+    }
+
+    async function handleSaveEdit() {
+      const blockId = editModalBlockId.value;
+      const newTitle = editModalTitleInput.value;
+      const newContent = editModalContentTextarea.value;
+
+      await updateBlock(blockId, { title: newTitle, content: newContent });
+      editBlockModal.close();
+      renderBlocks();
+    }
+
+    // Eventos
+    document.getElementById('addPageBtn').onclick = ()=>{
+      const v = document.getElementById('newPageInput').value.trim();
+      createPage(v||'Nova página');
+      document.getElementById('newPageInput').value='';
+    };
+    document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
+    
+    // Eventos do Modal de Criação
+    document.getElementById('addTextBtn').onclick = openNewBlockModal;
+    document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
+    document.getElementById('saveModalBtn').onclick = handleNewBlock;
+
+    // Eventos do Modal de Edição
+    document.getElementById('closeEditModalBtn').onclick = () => {
+      editBlockModal.close();
+    };
+    document.getElementById('saveEditModalBtn').onclick = handleSaveEdit;
+    document.getElementById('deleteBtn').onclick = async () => {
+      const blockId = editModalBlockId.value;
+      await deleteBlock(blockId);
+      editBlockModal.close();
+    };
+    document.getElementById('logoutBtn').onclick = async () => {
+      await supabase.auth.signOut();
+    };
+    
+    // Adiciona o evento de escuta para a barra de pesquisa
+    searchBar.addEventListener('input', (e) => {
+      renderBlocks(e.target.value);
+    });
+
+    // Início - Ouve o estado de autenticação para carregar as páginas ou redirecionar
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        window.location.href = 'auth.html';
+      } else if (session) {
+        currentUser = session.user;
+        loadPages();
+      }
+    });
+
+    // Adiciona esta verificação para carregar a página se o usuário já estiver logado
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        currentUser = session.user;
+        loadPages();
+      }
+    });
+  </script>
+</body>
+</html>
