@@ -31,6 +31,10 @@
 
     async function createPage(title){
       const { data: { user } } = await supabase.auth.getSession();
+      if (!user) {
+        alert('Você precisa estar logado para criar uma página.');
+        return;
+      }
       const userId = user.id;
       const { data, error } = await supabase.from('pages').insert({ title, user_id: userId }).select().single();
       if(error) return alert(error.message);
@@ -71,6 +75,10 @@
 
     async function addTextBlock(){
       const { data: { user } } = await supabase.auth.getSession();
+      if (!user) {
+        alert('Você precisa estar logado para adicionar um bloco de texto.');
+        return;
+      }
       const userId = user.id;
       const { data, error } = await supabase.from('blocks').insert({ page_id: activePageId, title:"Novo tópico", content:'', user_id: userId }).select().single();
       if(error) return alert(error.message);
