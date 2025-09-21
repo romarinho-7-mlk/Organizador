@@ -5,42 +5,139 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Autenticação</title>
   <style>
-    :root{--bg:#f8f9fa;--card:#ffffff;--text:#212529;--accent:#007bff;--border:#dee2e6;}
-    body{font-family:system-ui,sans-serif;margin:0;padding:2rem;display:flex;justify-content:center;align-items:center;min-height:100vh;background-color:var(--bg);color:var(--text);}
-    .container{width:100%;max-width:400px;padding:2rem;background-color:var(--card);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);display:flex;flex-direction:column;gap:1.5rem;}
-    h2{margin:0;text-align:center;color:var(--text);}
-    .form-group{display:flex;flex-direction:column;gap:0.5rem;}
-    input{padding:0.75rem;border:1px solid var(--border);border-radius:8px;font-size:1rem;width:100%;}
-    button{padding:0.75rem;border:none;border-radius:8px;font-size:1rem;cursor:pointer;background-color:var(--accent);color:#fff;}
-    button:hover{filter:brightness(90%);}
-    .toggle-link{text-align:center;font-size:0.9rem;cursor:pointer;color:var(--accent);}
-    .logout-btn{width:100%;background-color:#dc3545;}
-    .content{display:none;text-align:center;gap:1rem;}
+    /* Estilos baseados na imagem */
+    :root {
+      --bg-color: #f7f7f7;
+      --card-bg: #fff;
+      --border-color: #ccc;
+      --login-btn: #a63f35;
+      --header-bg: #800000;
+      --text-color: #333;
+      --input-bg: #f5f5f5;
+    }
+    
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: var(--bg-color);
+    }
+    
+    .header-bar {
+      width: 100%;
+      height: 60px;
+      background-color: var(--header-bg);
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    
+    .container {
+      width: 100%;
+      max-width: 400px;
+      padding: 2.5rem;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo h1 {
+      font-family: 'Times New Roman', serif;
+      font-size: 40px;
+      font-weight: normal;
+      color: var(--header-bg);
+      margin: 0;
+      letter-spacing: 2px;
+    }
+
+    .logo p {
+      font-size: 14px;
+      color: var(--text-color);
+      margin-top: -5px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .form-group {
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+      display: block;
+      font-size: 1rem;
+      color: var(--text-color);
+      margin-bottom: 0.5rem;
+    }
+    
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 1rem;
+      background-color: var(--input-bg);
+    }
+    
+    .login-btn {
+      width: 100%;
+      padding: 0.75rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      background-color: var(--login-btn);
+      color: #fff;
+    }
+    
+    .login-btn:hover {
+      filter: brightness(90%);
+    }
+
+    .content {
+      display: none;
+    }
   </style>
 </head>
 <body>
+  <div class="header-bar"></div>
   <div class="container">
+    <div class="logo">
+      <h1>NOTÁRIO</h1>
+      <p>TECNOLOGIA PARA CARTÓRIOS</p>
+    </div>
+    
     <div id="auth-form">
-      <h2>Entrar</h2>
       <form id="signInForm">
         <div class="form-group">
-          <label for="email">Email</label>
-          <input type="email" id="email" required>
+          <label for="login">Login:</label>
+          <input type="text" id="login" required>
         </div>
         <div class="form-group">
-          <label for="password">Senha</label>
+          <label for="password">Senha:</label>
           <input type="password" id="password" required>
         </div>
-        <button type="submit">Entrar</button>
+        <button type="submit" class="login-btn">Entrar</button>
       </form>
-      <div class="toggle-link" onclick="toggleForm()">Não tem uma conta? Registrar</div>
     </div>
     
     <div id="auth-success" class="content">
       <h2>Bem-vindo!</h2>
       <p>Você está logado. Agora você pode ir para a sua página principal.</p>
-      <button class="logout-btn" onclick="logout()">Sair</button>
-      <a href="index.html" style="text-decoration: none;"><button>Ir para a Página Principal</button></a>
+      <a href="index.html" style="text-decoration: none;"><button class="login-btn">Ir para a Página Principal</button></a>
     </div>
   </div>
 
@@ -55,63 +152,35 @@
     const authForm = document.getElementById('auth-form');
     const signInForm = document.getElementById('signInForm');
     const authSuccess = document.getElementById('auth-success');
-    const emailInput = document.getElementById('email');
+    // Alterado para 'loginInput' para corresponder ao novo campo
+    const loginInput = document.getElementById('login'); 
     const passwordInput = document.getElementById('password');
-
-    let isSignIn = true;
-
-    function toggleForm() {
-      isSignIn = !isSignIn;
-      const h2 = authForm.querySelector('h2');
-      const button = authForm.querySelector('button');
-      const toggleLink = authForm.querySelector('.toggle-link');
-
-      if (isSignIn) {
-        h2.textContent = 'Entrar';
-        button.textContent = 'Entrar';
-        toggleLink.textContent = 'Não tem uma conta? Registrar';
-      } else {
-        h2.textContent = 'Registrar';
-        button.textContent = 'Registrar';
-        toggleLink.textContent = 'Já tem uma conta? Entrar';
-      }
-    }
 
     async function handleAuth(event) {
       event.preventDefault();
-      const email = emailInput.value;
+      const login = loginInput.value;
       const password = passwordInput.value;
 
-      if (isSignIn) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          alert('Erro ao entrar: ' + error.message);
-        }
-      } else {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-          alert('Erro ao registrar: ' + error.message);
-        } else {
-          alert('Registro realizado com sucesso! Verifique seu e-mail para confirmar.');
-        }
-      }
-    }
-
-    async function logout() {
-      const { error } = await supabase.auth.signOut();
+      // O Supabase usa 'email' como campo de login por padrão.
+      // Se seu sistema de login usa 'login' como um nome de usuário, você precisará
+      // adaptar a lógica de autenticação do seu backend.
+      // Para fins de demonstração, vamos continuar usando o email do Supabase.
+      // Você pode considerar o campo "Login" como o "Email" para manter a funcionalidade.
+      const { error } = await supabase.auth.signInWithPassword({ email: login, password: password });
+      
       if (error) {
-        console.error('Erro ao sair:', error.message);
+        alert('Erro ao entrar: ' + error.message);
+      } else {
+        // Redireciona para index.html após o login
+        window.location.href = 'index.html';
       }
     }
 
-    // Monitora o estado de autenticação
+    // Monitora o estado de autenticação para exibir a mensagem de sucesso
     supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        authForm.style.display = 'none';
-        authSuccess.style.display = 'flex';
-      } else {
-        authForm.style.display = 'flex';
-        authSuccess.style.display = 'none';
+        // Redireciona para index.html automaticamente se a sessão já estiver ativa
+        window.location.href = 'index.html';
       }
     });
 
