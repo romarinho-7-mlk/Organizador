@@ -109,15 +109,22 @@
       height: 120px;
       resize: none;
     }
+
     .attach-item {
         display: flex;
+        flex-direction: column;
         justify-content: space-between;
         align-items: center;
         background: #f0f9f9;
         padding: 8px;
         border-radius: 8px;
         box-shadow: none;
-        cursor: default;
+    }
+    .attach-item img {
+        max-width: 100%;
+        height: auto;
+        margin-bottom: 8px;
+        border-radius: 6px;
     }
     .attach-item .file-name {
         flex: 1;
@@ -392,15 +399,35 @@
         data.forEach(attachment => {
             const item = document.createElement('div');
             item.className = 'attach-item';
-            item.innerHTML = `
-                <span class="file-name">${attachment.name}</span>
-                <div class="actions">
-                    <button class="btn download-btn">Download</button>
-                    <button class="btn danger delete-attach-btn">Excluir</button>
-                </div>
-            `;
-            item.querySelector('.download-btn').onclick = () => downloadAttachment(attachment.storage_path, attachment.name);
-            item.querySelector('.delete-attach-btn').onclick = () => deleteAttachment(attachment.id, attachment.storage_path);
+            
+            // Verifica se o anexo é uma imagem para exibir a visualização
+            if (attachment.type.startsWith('image/')) {
+                const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(attachment.storage_path);
+                const img = document.createElement('img');
+                img.src = publicUrl;
+                item.appendChild(img);
+            } else {
+                const fileName = document.createElement('span');
+                fileName.textContent = attachment.name;
+                item.appendChild(fileName);
+            }
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn download-btn';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.onclick = () => downloadAttachment(attachment.storage_path, attachment.name);
+            actions.appendChild(downloadBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn danger delete-attach-btn';
+            deleteBtn.textContent = 'Excluir';
+            deleteBtn.onclick = () => deleteAttachment(attachment.id, attachment.storage_path);
+            actions.appendChild(deleteBtn);
+
+            item.appendChild(actions);
             editModalFileList.appendChild(item);
         });
     }
