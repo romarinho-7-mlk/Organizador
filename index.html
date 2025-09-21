@@ -385,3 +385,40 @@
     document.getElementById('addPageBtn').onclick = ()=>{
       const v = document.getElementById('newPageInput').value.trim();
       createPage(v||'Nova página');
+      document.getElementById('newPageInput').value='';
+    };
+    document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
+    
+    // Eventos do Modal de Criação
+    document.getElementById('addTextBtn').onclick = openNewBlockModal;
+    document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
+    document.getElementById('saveModalBtn').onclick = handleNewBlock;
+
+    // Eventos do Modal de Edição (Corrigidos)
+    document.getElementById('closeEditModalBtn').onclick = () => {
+      editBlockModal.close();
+    };
+    document.getElementById('saveEditModalBtn').onclick = handleSaveEdit;
+    document.getElementById('deleteBtn').onclick = async () => {
+      const blockId = editModalBlockId.value;
+      await deleteBlock(blockId);
+      editBlockModal.close();
+    };
+
+    document.getElementById('logoutBtn').onclick = async () => {
+      await supabase.auth.signOut();
+      window.location.href = 'auth.html';
+    };
+
+    // Início (Com a correção para evitar duplicação)
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        currentUser = session.user;
+        loadPages();
+      } else {
+        window.location.href = 'auth.html';
+      }
+    });
+  </script>
+</body>
+</html>
