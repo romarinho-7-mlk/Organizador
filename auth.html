@@ -5,15 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Autenticação</title>
   <style>
-    /* Estilos baseados na imagem */
     :root {
       --bg-color: #f7f7f7;
       --card-bg: #fff;
       --border-color: #ccc;
-      --login-btn: #a63f35;
+      --button-color: #a63f35;
       --header-bg: #800000;
       --text-color: #333;
-      --input-bg: #f5f5f5;
+      --input-bg: #fff;
     }
     
     body {
@@ -99,7 +98,7 @@
       border-radius: 4px;
       font-size: 1rem;
       cursor: pointer;
-      background-color: var(--login-btn);
+      background-color: var(--button-color);
       color: #fff;
     }
     
@@ -110,21 +109,30 @@
     .content {
       display: none;
     }
+
+    .toggle-link {
+        font-size: 0.9rem;
+        cursor: pointer;
+        color: var(--button-color);
+        text-align: center;
+        margin-top: 1rem;
+    }
+
   </style>
 </head>
 <body>
   <div class="header-bar"></div>
   <div class="container">
     <div class="logo">
-      <h1>SUPORTE-ADD</h1>
+      <h1>SUPORT-ADD</h1>
       <p>EXPERIENCIA DO CLIENTE</p>
     </div>
     
-    <div id="auth-form">
-      <form id="signInForm">
+    <div id="auth-form" style="width: 100%;">
+      <form id="authForm">
         <div class="form-group">
-          <label for="login">Login:</label>
-          <input type="text" id="login" required>
+          <label for="email">Login:</label>
+          <input type="email" id="email" required>
         </div>
         <div class="form-group">
           <label for="password">Senha:</label>
@@ -132,6 +140,7 @@
         </div>
         <button type="submit" class="login-btn">Entrar</button>
       </form>
+      <div class="toggle-link" onclick="toggleForm()">Não tem uma conta? Registrar</div>
     </div>
     
     <div id="auth-success" class="content">
@@ -150,33 +159,50 @@
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const authForm = document.getElementById('auth-form');
-    const signInForm = document.getElementById('signInForm');
+    const formEl = document.getElementById('authForm');
     const authSuccess = document.getElementById('auth-success');
-    // Alterado para 'loginInput' para corresponder ao novo campo
-    const loginInput = document.getElementById('login'); 
+    const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
+    const buttonEl = formEl.querySelector('button');
+    const toggleLink = authForm.querySelector('.toggle-link');
+    const labelEmail = authForm.querySelector('label[for="email"]');
 
-    async function handleAuth(event) {
-      event.preventDefault();
-      const login = loginInput.value;
-      const password = passwordInput.value;
+    let isSignIn = true;
 
-      // O Supabase usa 'email' como campo de login por padrão.
-      // Se seu sistema de login usa 'login' como um nome de usuário, você precisará
-      // adaptar a lógica de autenticação do seu backend.
-      // Para fins de demonstração, vamos continuar usando o email do Supabase.
-      // Você pode considerar o campo "Login" como o "Email" para manter a funcionalidade.
-      const { error } = await supabase.auth.signInWithPassword({ email: login, password: password });
-      
-      if (error) {
-        alert('Erro ao entrar: ' + error.message);
+    function toggleForm() {
+      isSignIn = !isSignIn;
+      if (isSignIn) {
+        labelEmail.textContent = 'Login:';
+        buttonEl.textContent = 'Entrar';
+        toggleLink.textContent = 'Não tem uma conta? Registrar';
       } else {
-        // Redireciona para index.html após o login
-        window.location.href = 'index.html';
+        labelEmail.textContent = 'Email:';
+        buttonEl.textContent = 'Registrar';
+        toggleLink.textContent = 'Já tem uma conta? Entrar';
       }
     }
 
-    // Monitora o estado de autenticação para exibir a mensagem de sucesso
+    async function handleAuth(event) {
+      event.preventDefault();
+      const email = emailInput.value;
+      const password = passwordInput.value;
+
+      if (isSignIn) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          alert('Erro ao entrar: ' + error.message);
+        }
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) {
+          alert('Erro ao registrar: ' + error.message);
+        } else {
+          alert('Registro realizado com sucesso! Verifique seu e-mail para confirmar.');
+        }
+      }
+    }
+
+    // Monitora o estado de autenticação
     supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
         // Redireciona para index.html automaticamente se a sessão já estiver ativa
@@ -184,7 +210,7 @@
       }
     });
 
-    signInForm.addEventListener('submit', handleAuth);
+    formEl.addEventListener('submit', handleAuth);
   </script>
 </body>
 </html>
