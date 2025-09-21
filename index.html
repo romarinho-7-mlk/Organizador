@@ -202,6 +202,17 @@
       renderBlocks();
     }
 
+    // --- Logout ---
+    async function logout() {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro ao sair:', error.message);
+        alert('Erro ao sair: ' + error.message);
+      } else {
+        window.location.href = 'auth.html';
+      }
+    }
+
     // Eventos
     document.getElementById('addPageBtn').onclick = ()=>{
       const v = document.getElementById('newPageInput').value.trim();
@@ -210,6 +221,7 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     document.getElementById('addTextBtn').onclick = ()=> addTextBlock();
+    document.getElementById('logoutBtn').onclick = ()=> logout(); // Novo evento para o botão de logout
 
     // Início
     loadPages();
@@ -301,6 +313,7 @@
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
+            <button id="logoutBtn" class="btn">Sair</button>
           </div>
         </header>
 
