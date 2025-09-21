@@ -446,9 +446,13 @@
       editBlockModal.close();
     };
 
+    // Evento de clique para o botão de sair
     document.getElementById('logoutBtn').onclick = async () => {
-      await supabase.auth.signOut();
-      window.location.href = 'auth.html';
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Erro ao sair:', error.message);
+        alert('Ocorreu um erro ao tentar sair. Tente novamente.');
+      }
     };
     
     // Adiciona o evento de escuta para a barra de pesquisa
@@ -456,15 +460,15 @@
       renderBlocks(e.target.value);
     });
 
-    // Início
-    let isLoaded = false;
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session && !isLoaded) {
+    // Início - Ouve o estado de autenticação para carregar as páginas ou redirecionar
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        // Redireciona para a página de login apenas quando o evento de saída é confirmado
+        window.location.href = 'auth.html';
+      } else if (session) {
+        // Se houver uma sessão ativa, carrega as páginas do usuário
         currentUser = session.user;
         loadPages();
-        isLoaded = true;
-      } else if (!session) {
-        window.location.href = 'auth.html';
       }
     });
   </script>
