@@ -38,6 +38,10 @@
       flex-direction:column;
       gap:8px;
     }
+    
+    .block {
+      cursor: pointer; /* Adicionado para indicar que é clicável */
+    }
 
     .block textarea {
       width:100%;
@@ -148,6 +152,28 @@
     </div>
   </dialog>
 
+  <dialog id="editBlockModal">
+    <div class="modal-content">
+      <h2>Editar Bloco de Texto</h2>
+      <input type="hidden" id="editBlockId" />
+      <input type="text" id="editModalTitle" placeholder="Novo tópico" class="title-input" />
+      <textarea id="editModalContent" placeholder="Adicionar texto aqui"></textarea>
+      
+      <div class="file-upload">
+        <label class="btn">
+          Adicionar arquivos
+          <input type="file" id="editModalFiles" multiple style="display: none;" />
+        </label>
+        <div id="editModalFileList"></div>
+      </div>
+      
+      <div class="modal-buttons">
+        <button id="closeEditModalBtn" class="btn">Cancelar</button>
+        <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
+      </div>
+    </div>
+  </dialog>
+
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -160,12 +186,20 @@
     const blocksContainer = document.getElementById('blocksContainer');
     const pageTitle = document.getElementById('pageTitle');
     
-    // Elementos do Modal
+    // Elementos do Modal de Criação
     const newBlockModal = document.getElementById('newBlockModal');
     const modalTitleInput = document.getElementById('modalTitle');
     const modalContentTextarea = document.getElementById('modalContent');
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
+
+    // Elementos do Modal de Edição
+    const editBlockModal = document.getElementById('editBlockModal');
+    const editBlockIdInput = document.getElementById('editBlockId');
+    const editModalTitleInput = document.getElementById('editModalTitle');
+    const editModalContentTextarea = document.getElementById('editModalContent');
+    const editModalFilesInput = document.getElementById('editModalFiles');
+    const editModalFileListDiv = document.getElementById('editModalFileList');
 
     let pages = [];
     let activePageId = null;
@@ -225,7 +259,6 @@
       return data || [];
     }
     
-    // Função para lidar com a criação de um novo bloco via modal
     async function handleNewBlock() {
       if (!currentUser || !activePageId) {
         alert('Você precisa estar logado e ter uma página selecionada para adicionar um bloco.');
@@ -251,12 +284,30 @@
         await addFileAttachments(files, data.id);
       }
       
-      newBlockModal.close(); // Fecha o modal
-      renderBlocks(); // Recarrega os blocos
+      newBlockModal.close();
+      renderBlocks();
     }
+    
+    async function handleEditBlock() {
+      const blockId = editBlockIdInput.value;
+      const newTitle = editModalTitleInput.value;
+      const newContent = editModalContentTextarea.value;
+      const files = editModalFilesInput.files;
 
-    async function updateBlock(id, fields){
-      await supabase.from('blocks').update(fields).eq('id', id);
+      const { error } = await supabase.from('blocks')
+        .update({ title: newTitle, content: newContent })
+        .eq('id', blockId);
+      
+      if (error) {
+        return alert(error.message);
+      }
+      
+      if (files.length > 0) {
+        await addFileAttachments(files, blockId);
+      }
+      
+      editBlockModal.close();
+      renderBlocks();
     }
 
     async function deleteBlock(id){
@@ -296,22 +347,16 @@
       for(const b of blocks){
         const card = document.createElement('div');
         card.className = 'block';
+        card.onclick = () => openEditBlockModal(b); // Adicionado para abrir o modal de edição
 
-        // Título
-        const titleInput = document.createElement('input');
-        titleInput.type = "text";
-        titleInput.value = b.title || "Novo tópico";
-        titleInput.className = "title-input";
-        titleInput.oninput = e=> updateBlock(b.id, { title: e.target.value });
-        card.appendChild(titleInput);
-
-        // Texto
-        const ta = document.createElement('textarea');
-        ta.value = b.content || '';
-        ta.oninput = e=> updateBlock(b.id, { content: e.target.value });
-        card.appendChild(ta);
-
-        // Botão de upload (removido para o modal)
+        // Título e Conteúdo (exibição)
+        const titleDisplay = document.createElement('h3');
+        titleDisplay.textContent = b.title;
+        card.appendChild(titleDisplay);
+        
+        const contentDisplay = document.createElement('p');
+        contentDisplay.textContent = b.content;
+        card.appendChild(contentDisplay);
 
         // Listar anexos
         const { data: blockAttachments } = await supabase
@@ -330,7 +375,8 @@
           const openBtn = document.createElement('button');
           openBtn.className = 'btn';
           openBtn.textContent = 'Abrir';
-          openBtn.onclick = async ()=>{
+          openBtn.onclick = async (e)=>{
+            e.stopPropagation(); // Impede que o modal de edição abra ao clicar no botão
             const { data } = supabase.storage.from('uploads').getPublicUrl(a.storage_path);
             window.open(data.publicUrl, '_blank');
           };
@@ -339,7 +385,8 @@
           const rmBtn = document.createElement('button');
           rmBtn.className = 'btn danger';
           rmBtn.textContent = 'Remover';
-          rmBtn.onclick = async ()=>{
+          rmBtn.onclick = async (e)=>{
+            e.stopPropagation();
             if(!confirm('Remover anexo?')) return;
             await supabase.from('attachments').delete().eq('id', a.id);
             await supabase.storage.from('uploads').remove([a.storage_path]);
@@ -355,7 +402,10 @@
         const del = document.createElement('button');
         del.className = 'btn danger';
         del.textContent = 'Remover bloco';
-        del.onclick = ()=> deleteBlock(b.id);
+        del.onclick = (e)=> {
+          e.stopPropagation();
+          deleteBlock(b.id);
+        };
         card.appendChild(del);
 
         blocksContainer.appendChild(card);
@@ -370,13 +420,12 @@
       renderBlocks();
     }
     
-    // --- Funções do Modal ---
+    // --- Funções do Modal de Criação ---
     function openNewBlockModal() {
       newBlockModal.showModal();
     }
     function closeNewBlockModal() {
       newBlockModal.close();
-      // Limpar os campos do modal
       modalTitleInput.value = '';
       modalContentTextarea.value = '';
       modalFilesInput.value = null;
@@ -393,6 +442,43 @@
       }
     });
 
+    // --- Funções do Modal de Edição ---
+    async function openEditBlockModal(block) {
+      editBlockIdInput.value = block.id;
+      editModalTitleInput.value = block.title;
+      editModalContentTextarea.value = block.content;
+      
+      // Limpar e popular a lista de anexos
+      editModalFileListDiv.innerHTML = '';
+      const { data: attachments } = await supabase
+        .from('attachments')
+        .select('*')
+        .eq('block_id', block.id)
+        .order('created_at');
+        
+      attachments.forEach(a => {
+        const fileItem = document.createElement('span');
+        fileItem.textContent = a.name;
+        editModalFileListDiv.appendChild(fileItem);
+      });
+
+      editBlockModal.showModal();
+    }
+    
+    function closeEditBlockModal() {
+      editBlockModal.close();
+    }
+    
+    editModalFilesInput.addEventListener('change', () => {
+      editModalFileListDiv.innerHTML = '';
+      const files = editModalFilesInput.files;
+      for (const file of files) {
+        const fileItem = document.createElement('span');
+        fileItem.textContent = file.name;
+        editModalFileListDiv.appendChild(fileItem);
+      }
+    });
+
     // Eventos
     document.getElementById('addPageBtn').onclick = ()=>{
       const v = document.getElementById('newPageInput').value.trim();
@@ -401,10 +487,13 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     
-    // Eventos do Modal
+    // Eventos dos Modais
     document.getElementById('addTextBtn').onclick = openNewBlockModal;
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
+
+    document.getElementById('closeEditModalBtn').onclick = closeEditBlockModal;
+    document.getElementById('saveEditModalBtn').onclick = handleEditBlock;
 
     document.getElementById('logoutBtn').onclick = async () => {
       await supabase.auth.signOut();
