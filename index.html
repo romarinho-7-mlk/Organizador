@@ -12,6 +12,15 @@
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // --- Verificação de autenticação ---
+    async function checkAuth() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = 'auth.html';
+      }
+    }
+    checkAuth();
+
     const pagesEl = document.getElementById('pages');
     const blocksContainer = document.getElementById('blocksContainer');
     const pageTitle = document.getElementById('pageTitle');
