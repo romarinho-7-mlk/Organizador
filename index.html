@@ -44,6 +44,7 @@
       margin: 0;
     }
 
+    /* Altera o tamanho do campo de texto nos blocos da tela principal */
     .block textarea {
       width:100%;
       height:120px;
@@ -102,6 +103,12 @@
       display: flex;
       justify-content: flex-end;
       gap: 8px;
+    }
+
+    /* Define um tamanho fixo para o campo de texto do modal */
+    #editBlockModal textarea, #newBlockModal textarea {
+      height: 120px;
+      resize: none;
     }
   </style>
 </head>
@@ -394,7 +401,7 @@
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
 
-    // Eventos do Modal de Edição
+    // Eventos do Modal de Edição (Corrigidos)
     document.getElementById('closeEditModalBtn').onclick = () => {
       editBlockModal.close();
     };
