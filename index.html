@@ -410,7 +410,7 @@
       window.location.href = 'auth.html';
     };
 
-    // Início
+    // Início (Com a correção para evitar duplicação)
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         currentUser = session.user;
@@ -419,14 +419,6 @@
         window.location.href = 'auth.html';
       }
     });
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      currentUser = session.user;
-      loadPages();
-    } else {
-      window.location.href = 'auth.html';
-    }
   </script>
 </body>
 </html>
