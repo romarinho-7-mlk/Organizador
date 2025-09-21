@@ -71,6 +71,33 @@
       .sidebar{order:2}
       .blocks{grid-template-columns:1fr}
     }
+
+    /* Estilos do Modal */
+    dialog {
+      border: none;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      max-width: 500px;
+      width: 100%;
+      background: #fff;
+    }
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.5);
+    }
+    .modal-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .modal-content input, .modal-content textarea, .modal-content .btn {
+      width: 100%;
+    }
+    .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
   </style>
 </head>
 <body>
@@ -100,6 +127,27 @@
     </main>
   </div>
 
+  <dialog id="newBlockModal">
+    <div class="modal-content">
+      <h2>Novo Bloco de Texto</h2>
+      <input type="text" id="modalTitle" placeholder="Novo tópico" class="title-input" />
+      <textarea id="modalContent" placeholder="Adicionar texto aqui"></textarea>
+      
+      <div class="file-upload">
+        <label class="btn">
+          Adicionar arquivos
+          <input type="file" id="modalFiles" multiple style="display: none;" />
+        </label>
+        <div id="modalFileList"></div>
+      </div>
+      
+      <div class="modal-buttons">
+        <button id="closeModalBtn" class="btn">Cancelar</button>
+        <button id="saveModalBtn" class="btn">Salvar</button>
+      </div>
+    </div>
+  </dialog>
+
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -111,7 +159,13 @@
     const pagesEl = document.getElementById('pages');
     const blocksContainer = document.getElementById('blocksContainer');
     const pageTitle = document.getElementById('pageTitle');
-    const logoutBtn = document.getElementById('logoutBtn');
+    
+    // Elementos do Modal
+    const newBlockModal = document.getElementById('newBlockModal');
+    const modalTitleInput = document.getElementById('modalTitle');
+    const modalContentTextarea = document.getElementById('modalContent');
+    const modalFilesInput = document.getElementById('modalFiles');
+    const modalFileListDiv = document.getElementById('modalFileList');
 
     let pages = [];
     let activePageId = null;
@@ -170,15 +224,35 @@
       if(error) console.error(error);
       return data || [];
     }
-
-    async function addTextBlock(){
-      if (!currentUser) {
-        alert('Você precisa estar logado para adicionar um bloco de texto.');
+    
+    // Função para lidar com a criação de um novo bloco via modal
+    async function handleNewBlock() {
+      if (!currentUser || !activePageId) {
+        alert('Você precisa estar logado e ter uma página selecionada para adicionar um bloco.');
         return;
       }
-      const { data, error } = await supabase.from('blocks').insert({ page_id: activePageId, title:"Novo tópico", content:'', user_id: currentUser.id }).select().single();
-      if(error) return alert(error.message);
-      render();
+      
+      const title = modalTitleInput.value.trim() || "Novo tópico";
+      const content = modalContentTextarea.value.trim() || '';
+      const files = modalFilesInput.files;
+
+      const { data, error } = await supabase.from('blocks').insert({
+        page_id: activePageId,
+        title: title,
+        content: content,
+        user_id: currentUser.id
+      }).select().single();
+
+      if (error) {
+        return alert(error.message);
+      }
+      
+      if (files.length > 0) {
+        await addFileAttachments(files, data.id);
+      }
+      
+      newBlockModal.close(); // Fecha o modal
+      renderBlocks(); // Recarrega os blocos
     }
 
     async function updateBlock(id, fields){
@@ -198,7 +272,6 @@
         let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
         if(upError) { alert(upError.message); continue; }
         
-        // CORREÇÃO: Adicionando user_id à inserção de anexos
         const { error: attachError } = await supabase.from('attachments').insert({
           page_id: activePageId,
           block_id: blockId,
@@ -213,7 +286,6 @@
           alert('Erro ao inserir anexo: ' + attachError.message);
         }
       }
-      renderBlocks();
     }
 
     // --- Render Blocos com anexos ---
@@ -239,17 +311,7 @@
         ta.oninput = e=> updateBlock(b.id, { content: e.target.value });
         card.appendChild(ta);
 
-        // Botão de upload
-        const fileLabel = document.createElement('label');
-        fileLabel.className = 'btn';
-        fileLabel.textContent = 'Adicionar arquivo';
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.multiple = true;
-        fileInput.style.display = 'none';
-        fileInput.onchange = e=> addFileAttachments(e.target.files, b.id);
-        fileLabel.appendChild(fileInput);
-        card.appendChild(fileLabel);
+        // Botão de upload (removido para o modal)
 
         // Listar anexos
         const { data: blockAttachments } = await supabase
@@ -307,6 +369,29 @@
       pageTitle.textContent = p.title;
       renderBlocks();
     }
+    
+    // --- Funções do Modal ---
+    function openNewBlockModal() {
+      newBlockModal.showModal();
+    }
+    function closeNewBlockModal() {
+      newBlockModal.close();
+      // Limpar os campos do modal
+      modalTitleInput.value = '';
+      modalContentTextarea.value = '';
+      modalFilesInput.value = null;
+      modalFileListDiv.innerHTML = '';
+    }
+    
+    modalFilesInput.addEventListener('change', () => {
+      modalFileListDiv.innerHTML = '';
+      const files = modalFilesInput.files;
+      for (const file of files) {
+        const fileItem = document.createElement('span');
+        fileItem.textContent = file.name;
+        modalFileListDiv.appendChild(fileItem);
+      }
+    });
 
     // Eventos
     document.getElementById('addPageBtn').onclick = ()=>{
@@ -315,7 +400,12 @@
       document.getElementById('newPageInput').value='';
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
-    document.getElementById('addTextBtn').onclick = ()=> addTextBlock();
+    
+    // Eventos do Modal
+    document.getElementById('addTextBtn').onclick = openNewBlockModal;
+    document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
+    document.getElementById('saveModalBtn').onclick = handleNewBlock;
+
     document.getElementById('logoutBtn').onclick = async () => {
       await supabase.auth.signOut();
       window.location.href = 'auth.html';
