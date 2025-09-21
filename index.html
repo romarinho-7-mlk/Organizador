@@ -213,7 +213,20 @@
       const { data, error } = await supabase.from('pages').select('*').eq('user_id', currentUser.id).order('created_at', { ascending:false });
       if(error) console.error(error);
       pages = data || [];
-      if(!activePageId && pages.length) activePageId = pages[0].id;
+      
+      // Carrega o ID da página ativa do LocalStorage
+      const savedPageId = localStorage.getItem('activePageId');
+      if (savedPageId && pages.some(p => p.id === savedPageId)) {
+        activePageId = savedPageId;
+      } else if (pages.length) {
+        activePageId = pages[0].id;
+      } else {
+        activePageId = null;
+      }
+      
+      // Linha adicionada para diagnóstico
+      console.log('ID da página ativa carregado do LocalStorage:', activePageId);
+
       renderPages();
       render();
     }
@@ -227,6 +240,7 @@
       if(error) return alert(error.message);
       pages.unshift(data);
       activePageId = data.id;
+      localStorage.setItem('activePageId', activePageId); // Salva o novo ID
       renderPages();
       render();
     }
@@ -237,6 +251,11 @@
       if(error) return alert(error.message);
       pages = pages.filter(p=>p.id!==id);
       activePageId = pages[0]?.id || null;
+      if (activePageId) {
+        localStorage.setItem('activePageId', activePageId);
+      } else {
+        localStorage.removeItem('activePageId');
+      }
       renderPages();
       render();
     }
@@ -247,7 +266,11 @@
         const div = document.createElement('div');
         div.className = 'page' + (p.id===activePageId? ' active':'');
         div.textContent = p.title;
-        div.onclick = ()=>{ activePageId=p.id; render(); };
+        div.onclick = ()=>{ 
+          activePageId=p.id; 
+          localStorage.setItem('activePageId', activePageId); // Salva o ID ao clicar
+          render(); 
+        };
         pagesEl.appendChild(div);
       });
     }
@@ -418,12 +441,14 @@
       window.location.href = 'auth.html';
     };
 
-    // Início (Com a correção para evitar duplicação)
+    // Início
+    let isLoaded = false;
     supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
+      if (session && !isLoaded) {
         currentUser = session.user;
         loadPages();
-      } else {
+        isLoaded = true;
+      } else if (!session) {
         window.location.href = 'auth.html';
       }
     });
