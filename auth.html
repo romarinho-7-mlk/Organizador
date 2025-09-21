@@ -33,7 +33,7 @@
         </div>
         <button type="submit">Entrar</button>
       </form>
-      <div class="toggle-link">Não tem uma conta? Registrar</div>
+      <div class="toggle-link" onclick="toggleForm()">Não tem uma conta? Registrar</div>
     </div>
     
     <div id="auth-success" class="content">
@@ -47,6 +47,7 @@
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+    // 🔑 Suas credenciais Supabase
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -56,7 +57,6 @@
     const authSuccess = document.getElementById('auth-success');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
-    const toggleLink = document.querySelector('.toggle-link');
 
     let isSignIn = true;
 
@@ -64,7 +64,8 @@
       isSignIn = !isSignIn;
       const h2 = authForm.querySelector('h2');
       const button = authForm.querySelector('button');
-      
+      const toggleLink = authForm.querySelector('.toggle-link');
+
       if (isSignIn) {
         h2.textContent = 'Entrar';
         button.textContent = 'Entrar';
@@ -115,7 +116,6 @@
     });
 
     signInForm.addEventListener('submit', handleAuth);
-    toggleLink.addEventListener('click', toggleForm);
   </script>
 </body>
 </html>
