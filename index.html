@@ -91,6 +91,7 @@
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
+            <button id="logoutBtn" class="btn danger">Sair</button>
           </div>
         </header>
 
@@ -110,6 +111,7 @@
     const pagesEl = document.getElementById('pages');
     const blocksContainer = document.getElementById('blocksContainer');
     const pageTitle = document.getElementById('pageTitle');
+    const logoutBtn = document.getElementById('logoutBtn');
 
     let pages = [];
     let activePageId = null;
@@ -117,7 +119,6 @@
 
     // --- Páginas ---
     async function loadPages(){
-      // Adicionado verificação do usuário
       if (!currentUser) return;
       
       const { data, error } = await supabase.from('pages').select('*').eq('user_id', currentUser.id).order('created_at', { ascending:false });
@@ -308,20 +309,21 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     document.getElementById('addTextBtn').onclick = ()=> addTextBlock();
+    document.getElementById('logoutBtn').onclick = async () => {
+      await supabase.auth.signOut();
+      window.location.href = 'auth.html';
+    };
 
     // Início
-    // Monitora o estado de autenticação e carrega a página após a sessão ser confirmada
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         currentUser = session.user;
         loadPages();
       } else {
-        // Redireciona para o login se não houver sessão
         window.location.href = 'auth.html';
       }
     });
 
-    // Tente obter a sessão inicial
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       currentUser = session.user;
