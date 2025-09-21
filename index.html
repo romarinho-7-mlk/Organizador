@@ -12,15 +12,6 @@
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // --- Verificação de autenticação ---
-    async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.href = 'auth.html';
-      }
-    }
-    checkAuth();
-
     const pagesEl = document.getElementById('pages');
     const blocksContainer = document.getElementById('blocksContainer');
     const pageTitle = document.getElementById('pageTitle');
@@ -39,7 +30,9 @@
     }
 
     async function createPage(title){
-      const { data, error } = await supabase.from('pages').insert({ title }).select().single();
+      const { data: { user } } = await supabase.auth.getSession();
+      const userId = user.id;
+      const { data, error } = await supabase.from('pages').insert({ title, user_id: userId }).select().single();
       if(error) return alert(error.message);
       pages.unshift(data);
       activePageId = data.id;
@@ -77,7 +70,9 @@
     }
 
     async function addTextBlock(){
-      const { data, error } = await supabase.from('blocks').insert({ page_id: activePageId, title:"Novo tópico", content:'' }).select().single();
+      const { data: { user } } = await supabase.auth.getSession();
+      const userId = user.id;
+      const { data, error } = await supabase.from('blocks').insert({ page_id: activePageId, title:"Novo tópico", content:'', user_id: userId }).select().single();
       if(error) return alert(error.message);
       render();
     }
@@ -202,17 +197,6 @@
       renderBlocks();
     }
 
-    // --- Logout ---
-    async function logout() {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Erro ao sair:', error.message);
-        alert('Erro ao sair: ' + error.message);
-      } else {
-        window.location.href = 'auth.html';
-      }
-    }
-
     // Eventos
     document.getElementById('addPageBtn').onclick = ()=>{
       const v = document.getElementById('newPageInput').value.trim();
@@ -221,7 +205,6 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     document.getElementById('addTextBtn').onclick = ()=> addTextBlock();
-    document.getElementById('logoutBtn').onclick = ()=> logout(); // Novo evento para o botão de logout
 
     // Início
     loadPages();
@@ -313,7 +296,6 @@
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
-            <button id="logoutBtn" class="btn">Sair</button>
           </div>
         </header>
 
