@@ -37,10 +37,11 @@
       display:flex;
       flex-direction:column;
       gap:8px;
+      cursor: pointer;
     }
-    
+
     .block h3, .block p {
-        margin: 0;
+      margin: 0;
     }
 
     .block textarea {
@@ -51,7 +52,7 @@
       border-radius:8px;
       padding:6px;
       resize:vertical;
-      outline:none;
+      outline:none
     }
 
     .title-input {
@@ -60,16 +61,11 @@
       padding:6px;
       border-radius:8px;
     }
-    
+
     .attachments {
       display:flex;
       flex-direction:column;
       gap:6px;
-    }
-    
-    .block-controls {
-      display: flex;
-      gap: 8px;
     }
 
     .small{font-size:13px;color:var(--muted)}
@@ -159,25 +155,20 @@
 
   <dialog id="editBlockModal">
     <div class="modal-content">
-      <h2>Editar Bloco de Texto</h2>
-      <input type="hidden" id="editBlockId" />
-      <input type="text" id="editModalTitle" placeholder="Novo tópico" class="title-input" />
-      <textarea id="editModalContent" placeholder="Adicionar texto aqui"></textarea>
-      
-      <div class="file-upload">
-        <label class="btn">
-          Adicionar arquivos
-          <input type="file" id="editModalFiles" multiple style="display: none;" />
-        </label>
-        <div id="editModalFileList"></div>
-      </div>
+      <input type="hidden" id="editModalBlockId" />
+      <h2>Detalhes do Bloco</h2>
+      <input type="text" id="editModalTitleInput" class="title-input" />
+      <textarea id="editModalContentTextarea" class="title-input"></textarea>
+      <div id="editModalFileList"></div>
       
       <div class="modal-buttons">
-        <button id="closeEditModalBtn" class="btn">Cancelar</button>
+        <button id="closeEditModalBtn" class="btn">Fechar</button>
         <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
+        <button id="deleteBtn" class="btn danger">Excluir Bloco</button>
       </div>
     </div>
   </dialog>
+
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -198,13 +189,12 @@
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
 
-    // Elementos do Modal de Edição
+    // Novos elementos do Modal de Edição
     const editBlockModal = document.getElementById('editBlockModal');
-    const editBlockIdInput = document.getElementById('editBlockId');
-    const editModalTitleInput = document.getElementById('editModalTitle');
-    const editModalContentTextarea = document.getElementById('editModalContent');
-    const editModalFilesInput = document.getElementById('editModalFiles');
-    const editModalFileListDiv = document.getElementById('editModalFileList');
+    const editModalBlockId = document.getElementById('editModalBlockId');
+    const editModalTitleInput = document.getElementById('editModalTitleInput');
+    const editModalContentTextarea = document.getElementById('editModalContentTextarea');
+    const editModalFileList = document.getElementById('editModalFileList');
 
     let pages = [];
     let activePageId = null;
@@ -264,6 +254,7 @@
       return data || [];
     }
     
+    // Função para lidar com a criação de um novo bloco via modal
     async function handleNewBlock() {
       if (!currentUser || !activePageId) {
         alert('Você precisa estar logado e ter uma página selecionada para adicionar um bloco.');
@@ -289,33 +280,16 @@
         await addFileAttachments(files, data.id);
       }
       
-      newBlockModal.close();
-      renderBlocks();
+      newBlockModal.close(); // Fecha o modal
+      renderBlocks(); // Recarrega os blocos
     }
-    
-    async function handleEditBlock() {
-      const blockId = editBlockIdInput.value;
-      const newTitle = editModalTitleInput.value;
-      const newContent = editModalContentTextarea.value;
-      const files = editModalFilesInput.files;
 
-      const { error } = await supabase.from('blocks')
-        .update({ title: newTitle, content: newContent })
-        .eq('id', blockId);
-      
-      if (error) {
-        return alert(error.message);
-      }
-      
-      if (files.length > 0) {
-        await addFileAttachments(files, blockId);
-      }
-      
-      editBlockModal.close();
-      renderBlocks();
+    async function updateBlock(id, fields){
+      await supabase.from('blocks').update(fields).eq('id', id);
     }
 
     async function deleteBlock(id){
+      if(!confirm("Tem certeza que deseja excluir este bloco?")) return;
       await supabase.from('blocks').delete().eq('id', id);
       render();
     }
@@ -353,85 +327,21 @@
         const card = document.createElement('div');
         card.className = 'block';
 
-        // Título e Conteúdo (exibição)
-        const titleDisplay = document.createElement('h3');
-        titleDisplay.textContent = b.title;
-        card.appendChild(titleDisplay);
+        // Não mais editável diretamente. Clique no bloco para abrir o modal.
+        card.innerHTML = `
+          <h3>${b.title}</h3>
+          <p>${b.content}</p>
+        `;
         
-        const contentDisplay = document.createElement('p');
-        contentDisplay.textContent = b.content;
-        card.appendChild(contentDisplay);
+        // Adiciona o evento de clique para abrir o modal de edição
+        card.onclick = () => {
+          openEditModal(b);
+        };
         
-        // Botões de controle
-        const controlsDiv = document.createElement('div');
-        controlsDiv.className = 'block-controls';
-
-        // Botão de editar
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn';
-        editBtn.textContent = 'Editar';
-        editBtn.onclick = (e) => {
-          e.stopPropagation();
-          openEditBlockModal(b);
-        };
-        controlsDiv.appendChild(editBtn);
-
-        // Botão de remover bloco
-        const delBtn = document.createElement('button');
-        delBtn.className = 'btn danger';
-        delBtn.textContent = 'Remover bloco';
-        delBtn.onclick = (e) => {
-          e.stopPropagation();
-          deleteBlock(b.id);
-        };
-        controlsDiv.appendChild(delBtn);
-
-        card.appendChild(controlsDiv);
-
-        // Listar anexos
-        const { data: blockAttachments } = await supabase
-          .from('attachments')
-          .select('*')
-          .eq('block_id', b.id)
-          .order('created_at');
-
-        const attachList = document.createElement('div');
-        attachList.className = 'attachments';
-        blockAttachments?.forEach(a=>{
-          const item = document.createElement('div');
-          item.className = 'attach-item';
-          item.innerHTML = `<strong>${a.name}</strong> (${Math.round(a.size/1024)} KB)`;
-
-          const openBtn = document.createElement('button');
-          openBtn.className = 'btn';
-          openBtn.textContent = 'Abrir';
-          openBtn.onclick = async (e)=>{
-            e.stopPropagation();
-            const { data } = supabase.storage.from('uploads').getPublicUrl(a.storage_path);
-            window.open(data.publicUrl, '_blank');
-          };
-          item.appendChild(openBtn);
-
-          const rmBtn = document.createElement('button');
-          rmBtn.className = 'btn danger';
-          rmBtn.textContent = 'Remover';
-          rmBtn.onclick = async (e)=>{
-            e.stopPropagation();
-            if(!confirm('Remover anexo?')) return;
-            await supabase.from('attachments').delete().eq('id', a.id);
-            await supabase.storage.from('uploads').remove([a.storage_path]);
-            renderBlocks();
-          };
-          item.appendChild(rmBtn);
-
-          attachList.appendChild(item);
-        });
-        card.appendChild(attachList);
-
         blocksContainer.appendChild(card);
       }
     }
-
+    
     // --- Render principal ---
     async function render(){
       const p = pages.find(x=>x.id===activePageId);
@@ -446,58 +356,30 @@
     }
     function closeNewBlockModal() {
       newBlockModal.close();
+      // Limpar os campos do modal
       modalTitleInput.value = '';
       modalContentTextarea.value = '';
       modalFilesInput.value = null;
       modalFileListDiv.innerHTML = '';
     }
     
-    modalFilesInput.addEventListener('change', () => {
-      modalFileListDiv.innerHTML = '';
-      const files = modalFilesInput.files;
-      for (const file of files) {
-        const fileItem = document.createElement('span');
-        fileItem.textContent = file.name;
-        modalFileListDiv.appendChild(fileItem);
-      }
-    });
-
     // --- Funções do Modal de Edição ---
-    async function openEditBlockModal(block) {
-      editBlockIdInput.value = block.id;
-      editModalTitleInput.value = block.title;
-      editModalContentTextarea.value = block.content;
-      
-      // Limpar e popular a lista de anexos
-      editModalFileListDiv.innerHTML = '';
-      const { data: attachments } = await supabase
-        .from('attachments')
-        .select('*')
-        .eq('block_id', block.id)
-        .order('created_at');
-        
-      attachments.forEach(a => {
-        const fileItem = document.createElement('span');
-        fileItem.textContent = a.name;
-        editModalFileListDiv.appendChild(fileItem);
-      });
-
+    function openEditModal(blockData) {
+      editModalBlockId.value = blockData.id;
+      editModalTitleInput.value = blockData.title;
+      editModalContentTextarea.value = blockData.content;
       editBlockModal.showModal();
     }
-    
-    function closeEditBlockModal() {
+
+    async function handleSaveEdit() {
+      const blockId = editModalBlockId.value;
+      const newTitle = editModalTitleInput.value;
+      const newContent = editModalContentTextarea.value;
+
+      await updateBlock(blockId, { title: newTitle, content: newContent });
       editBlockModal.close();
+      renderBlocks();
     }
-    
-    editModalFilesInput.addEventListener('change', () => {
-      editModalFileListDiv.innerHTML = '';
-      const files = editModalFilesInput.files;
-      for (const file of files) {
-        const fileItem = document.createElement('span');
-        fileItem.textContent = file.name;
-        editModalFileListDiv.appendChild(fileItem);
-      }
-    });
 
     // Eventos
     document.getElementById('addPageBtn').onclick = ()=>{
@@ -507,13 +389,21 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     
-    // Eventos dos Modais
+    // Eventos do Modal de Criação
     document.getElementById('addTextBtn').onclick = openNewBlockModal;
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
 
-    document.getElementById('closeEditModalBtn').onclick = closeEditModalBtn;
-    document.getElementById('saveEditModalBtn').onclick = handleEditBlock;
+    // Eventos do Modal de Edição
+    document.getElementById('closeEditModalBtn').onclick = () => {
+      editBlockModal.close();
+    };
+    document.getElementById('saveEditModalBtn').onclick = handleSaveEdit;
+    document.getElementById('deleteBtn').onclick = async () => {
+      const blockId = editModalBlockId.value;
+      await deleteBlock(blockId);
+      editBlockModal.close();
+    };
 
     document.getElementById('logoutBtn').onclick = async () => {
       await supabase.auth.signOut();
