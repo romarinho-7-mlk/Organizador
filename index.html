@@ -358,7 +358,7 @@
       // Chama a função que fecha o modal e limpa os campos
       closeNewBlockModal();
       
-      renderBlocks(); // Recarrega os blocos
+      render(); // **AQUI ESTÁ A CORREÇÃO**
     }
 
     async function updateBlock(id, fields){
