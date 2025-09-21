@@ -109,6 +109,26 @@
       height: 120px;
       resize: none;
     }
+    .attach-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f0f9f9;
+        padding: 8px;
+        border-radius: 8px;
+        box-shadow: none;
+        cursor: default;
+    }
+    .attach-item .file-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .attach-item .actions {
+        display: flex;
+        gap: 8px;
+    }
   </style>
 </head>
 <body>
@@ -166,6 +186,13 @@
       <h2>Detalhes do Bloco</h2>
       <input type="text" id="editModalTitleInput" class="title-input" />
       <textarea id="editModalContentTextarea" class="title-input"></textarea>
+
+      <div class="file-upload">
+        <label class="btn">
+          Adicionar arquivos
+          <input type="file" id="editModalFilesInput" multiple style="display: none;" />
+        </label>
+      </div>
       <div id="editModalFileList"></div>
       
       <div class="modal-buttons">
@@ -202,6 +229,7 @@
     const editModalTitleInput = document.getElementById('editModalTitleInput');
     const editModalContentTextarea = document.getElementById('editModalContentTextarea');
     const editModalFileList = document.getElementById('editModalFileList');
+    const editModalFilesInput = document.getElementById('editModalFilesInput');
     
     // Adicionamos a barra de pesquisa
     const searchBar = document.getElementById('searchBar');
@@ -352,6 +380,61 @@
       }
     }
 
+    // Nova função para renderizar os anexos
+    async function renderAttachments(blockId) {
+        editModalFileList.innerHTML = '';
+        const { data, error } = await supabase.from('attachments').select('*').eq('block_id', blockId);
+        if (error) {
+            console.error('Erro ao carregar anexos:', error);
+            return;
+        }
+        
+        data.forEach(attachment => {
+            const item = document.createElement('div');
+            item.className = 'attach-item';
+            item.innerHTML = `
+                <span class="file-name">${attachment.name}</span>
+                <div class="actions">
+                    <button class="btn download-btn">Download</button>
+                    <button class="btn danger delete-attach-btn">Excluir</button>
+                </div>
+            `;
+            item.querySelector('.download-btn').onclick = () => downloadAttachment(attachment.storage_path, attachment.name);
+            item.querySelector('.delete-attach-btn').onclick = () => deleteAttachment(attachment.id, attachment.storage_path);
+            editModalFileList.appendChild(item);
+        });
+    }
+
+    // Função de download do anexo
+    async function downloadAttachment(path, fileName) {
+      const { data, error } = await supabase.storage.from('uploads').download(path);
+      if (error) return alert('Erro ao baixar arquivo: ' + error.message);
+
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Função para excluir anexo
+    async function deleteAttachment(id, path) {
+        if (!confirm("Tem certeza que deseja excluir este anexo?")) return;
+        
+        const { error: dbError } = await supabase.from('attachments').delete().eq('id', id);
+        if (dbError) return alert('Erro ao excluir anexo: ' + dbError.message);
+        
+        const { error: storageError } = await supabase.storage.from('uploads').remove([path]);
+        if (storageError) return alert('Erro ao excluir arquivo do storage: ' + storageError.message);
+        
+        alert("Anexo excluído com sucesso!");
+        renderAttachments(editModalBlockId.value);
+    }
+
+
     // --- Render Blocos com anexos (Função atualizada com pesquisa) ---
     function renderBlocks(searchTerm = ''){
       blocksContainer.innerHTML = '';
@@ -409,6 +492,7 @@
       editModalBlockId.value = blockData.id;
       editModalTitleInput.value = blockData.title;
       editModalContentTextarea.value = blockData.content;
+      renderAttachments(blockData.id); // Carrega e exibe os anexos do bloco
       editBlockModal.showModal();
     }
 
@@ -416,10 +500,15 @@
       const blockId = editModalBlockId.value;
       const newTitle = editModalTitleInput.value;
       const newContent = editModalContentTextarea.value;
+      const newFiles = editModalFilesInput.files;
 
       await updateBlock(blockId, { title: newTitle, content: newContent });
+      if (newFiles.length > 0) {
+        await addFileAttachments(newFiles, blockId);
+      }
+
       editBlockModal.close();
-      renderBlocks();
+      render();
     }
 
     // Eventos
@@ -445,6 +534,17 @@
       await deleteBlock(blockId);
       editBlockModal.close();
     };
+    
+    // Evento para lidar com a seleção de arquivos no modal de edição
+    editModalFilesInput.addEventListener('change', async (e) => {
+        const files = e.target.files;
+        const blockId = editModalBlockId.value;
+        if (files.length > 0) {
+            await addFileAttachments(files, blockId);
+            renderAttachments(blockId);
+            e.target.value = ''; // Limpa o input file para permitir novos uploads do mesmo arquivo
+        }
+    });
 
     // Altere este bloco de código para remover o redirecionamento direto
     document.getElementById('logoutBtn').onclick = async () => {
