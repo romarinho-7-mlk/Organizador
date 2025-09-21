@@ -286,7 +286,9 @@
         await addFileAttachments(files, data.id);
       }
       
-      newBlockModal.close(); // Fecha o modal
+      // Chama a função que fecha o modal e limpa os campos
+      closeNewBlockModal();
+      
       renderBlocks(); // Recarrega os blocos
     }
 
