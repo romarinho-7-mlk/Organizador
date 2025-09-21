@@ -42,7 +42,7 @@
     .block {
       cursor: pointer;
     }
-
+    
     .block h3, .block p {
         margin: 0;
     }
@@ -193,4 +193,335 @@
     // Elementos do Modal de Criação
     const newBlockModal = document.getElementById('newBlockModal');
     const modalTitleInput = document.getElementById('modalTitle');
-    const modalContentTextarea = document.getElementById('modalContent
+    const modalContentTextarea = document.getElementById('modalContent');
+    const modalFilesInput = document.getElementById('modalFiles');
+    const modalFileListDiv = document.getElementById('modalFileList');
+
+    // Elementos do Modal de Edição
+    const editBlockModal = document.getElementById('editBlockModal');
+    const editBlockIdInput = document.getElementById('editBlockId');
+    const editModalTitleInput = document.getElementById('editModalTitle');
+    const editModalContentTextarea = document.getElementById('editModalContent');
+    const editModalFilesInput = document.getElementById('editModalFiles');
+    const editModalFileListDiv = document.getElementById('editModalFileList');
+
+    let pages = [];
+    let activePageId = null;
+    let currentUser = null;
+
+    // --- Páginas ---
+    async function loadPages(){
+      if (!currentUser) return;
+      
+      const { data, error } = await supabase.from('pages').select('*').eq('user_id', currentUser.id).order('created_at', { ascending:false });
+      if(error) console.error(error);
+      pages = data || [];
+      if(!activePageId && pages.length) activePageId = pages[0].id;
+      renderPages();
+      render();
+    }
+
+    async function createPage(title){
+      if (!currentUser) {
+        alert('Você precisa estar logado para criar uma página.');
+        return;
+      }
+      const { data, error } = await supabase.from('pages').insert({ title, user_id: currentUser.id }).select().single();
+      if(error) return alert(error.message);
+      pages.unshift(data);
+      activePageId = data.id;
+      renderPages();
+      render();
+    }
+
+    async function deletePage(id){
+      if(!confirm("Excluir página?")) return;
+      const { error } = await supabase.from('pages').delete().eq('id', id);
+      if(error) return alert(error.message);
+      pages = pages.filter(p=>p.id!==id);
+      activePageId = pages[0]?.id || null;
+      renderPages();
+      render();
+    }
+
+    function renderPages(){
+      pagesEl.innerHTML = '';
+      pages.forEach(p=>{
+        const div = document.createElement('div');
+        div.className = 'page' + (p.id===activePageId? ' active':'');
+        div.textContent = p.title;
+        div.onclick = ()=>{ activePageId=p.id; render(); };
+        pagesEl.appendChild(div);
+      });
+    }
+
+    // --- Blocos ---
+    async function loadBlocks(){
+      if(!activePageId) return [];
+      const { data, error } = await supabase.from('blocks').select('*').eq('page_id', activePageId).order('created_at');
+      if(error) console.error(error);
+      return data || [];
+    }
+    
+    async function handleNewBlock() {
+      if (!currentUser || !activePageId) {
+        alert('Você precisa estar logado e ter uma página selecionada para adicionar um bloco.');
+        return;
+      }
+      
+      const title = modalTitleInput.value.trim() || "Novo tópico";
+      const content = modalContentTextarea.value.trim() || '';
+      const files = modalFilesInput.files;
+
+      const { data, error } = await supabase.from('blocks').insert({
+        page_id: activePageId,
+        title: title,
+        content: content,
+        user_id: currentUser.id
+      }).select().single();
+
+      if (error) {
+        return alert(error.message);
+      }
+      
+      if (files.length > 0) {
+        await addFileAttachments(files, data.id);
+      }
+      
+      newBlockModal.close();
+      renderBlocks();
+    }
+    
+    async function handleEditBlock() {
+      const blockId = editBlockIdInput.value;
+      const newTitle = editModalTitleInput.value;
+      const newContent = editModalContentTextarea.value;
+      const files = editModalFilesInput.files;
+
+      const { error } = await supabase.from('blocks')
+        .update({ title: newTitle, content: newContent })
+        .eq('id', blockId);
+      
+      if (error) {
+        return alert(error.message);
+      }
+      
+      if (files.length > 0) {
+        await addFileAttachments(files, blockId);
+      }
+      
+      editBlockModal.close();
+      renderBlocks();
+    }
+
+    async function deleteBlock(id){
+      await supabase.from('blocks').delete().eq('id', id);
+      render();
+    }
+
+    // --- Anexos ---
+    async function addFileAttachments(fileList, blockId){
+      const arr = Array.from(fileList);
+      for(const file of arr){
+        const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
+        let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
+        if(upError) { alert(upError.message); continue; }
+        
+        const { error: attachError } = await supabase.from('attachments').insert({
+          page_id: activePageId,
+          block_id: blockId,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          storage_path: path,
+          user_id: currentUser.id
+        });
+        
+        if (attachError) {
+          alert('Erro ao inserir anexo: ' + attachError.message);
+        }
+      }
+    }
+
+    // --- Render Blocos com anexos ---
+    async function renderBlocks(){
+      blocksContainer.innerHTML = '';
+      const blocks = await loadBlocks();
+
+      for(const b of blocks){
+        const card = document.createElement('div');
+        card.className = 'block';
+        card.onclick = () => openEditBlockModal(b);
+
+        // Título e Conteúdo (exibição)
+        const titleDisplay = document.createElement('h3');
+        titleDisplay.textContent = b.title;
+        card.appendChild(titleDisplay);
+        
+        const contentDisplay = document.createElement('p');
+        contentDisplay.textContent = b.content;
+        card.appendChild(contentDisplay);
+
+        // Listar anexos
+        const { data: blockAttachments } = await supabase
+          .from('attachments')
+          .select('*')
+          .eq('block_id', b.id)
+          .order('created_at');
+
+        const attachList = document.createElement('div');
+        attachList.className = 'attachments';
+        blockAttachments?.forEach(a=>{
+          const item = document.createElement('div');
+          item.className = 'attach-item';
+          item.innerHTML = `<strong>${a.name}</strong> (${Math.round(a.size/1024)} KB)`;
+
+          const openBtn = document.createElement('button');
+          openBtn.className = 'btn';
+          openBtn.textContent = 'Abrir';
+          openBtn.onclick = async (e)=>{
+            e.stopPropagation();
+            const { data } = supabase.storage.from('uploads').getPublicUrl(a.storage_path);
+            window.open(data.publicUrl, '_blank');
+          };
+          item.appendChild(openBtn);
+
+          const rmBtn = document.createElement('button');
+          rmBtn.className = 'btn danger';
+          rmBtn.textContent = 'Remover';
+          rmBtn.onclick = async (e)=>{
+            e.stopPropagation();
+            if(!confirm('Remover anexo?')) return;
+            await supabase.from('attachments').delete().eq('id', a.id);
+            await supabase.storage.from('uploads').remove([a.storage_path]);
+            renderBlocks();
+          };
+          item.appendChild(rmBtn);
+
+          attachList.appendChild(item);
+        });
+        card.appendChild(attachList);
+
+        // Botão remover bloco
+        const del = document.createElement('button');
+        del.className = 'btn danger';
+        del.textContent = 'Remover bloco';
+        del.onclick = (e)=> {
+          e.stopPropagation();
+          deleteBlock(b.id);
+        };
+        card.appendChild(del);
+
+        blocksContainer.appendChild(card);
+      }
+    }
+
+    // --- Render principal ---
+    async function render(){
+      const p = pages.find(x=>x.id===activePageId);
+      if(!p){ pageTitle.textContent = 'Nenhuma página'; return; }
+      pageTitle.textContent = p.title;
+      renderBlocks();
+    }
+    
+    // --- Funções do Modal de Criação ---
+    function openNewBlockModal() {
+      newBlockModal.showModal();
+    }
+    function closeNewBlockModal() {
+      newBlockModal.close();
+      modalTitleInput.value = '';
+      modalContentTextarea.value = '';
+      modalFilesInput.value = null;
+      modalFileListDiv.innerHTML = '';
+    }
+    
+    modalFilesInput.addEventListener('change', () => {
+      modalFileListDiv.innerHTML = '';
+      const files = modalFilesInput.files;
+      for (const file of files) {
+        const fileItem = document.createElement('span');
+        fileItem.textContent = file.name;
+        modalFileListDiv.appendChild(fileItem);
+      }
+    });
+
+    // --- Funções do Modal de Edição ---
+    async function openEditBlockModal(block) {
+      editBlockIdInput.value = block.id;
+      editModalTitleInput.value = block.title;
+      editModalContentTextarea.value = block.content;
+      
+      // Limpar e popular a lista de anexos
+      editModalFileListDiv.innerHTML = '';
+      const { data: attachments } = await supabase
+        .from('attachments')
+        .select('*')
+        .eq('block_id', block.id)
+        .order('created_at');
+        
+      attachments.forEach(a => {
+        const fileItem = document.createElement('span');
+        fileItem.textContent = a.name;
+        editModalFileListDiv.appendChild(fileItem);
+      });
+
+      editBlockModal.showModal();
+    }
+    
+    function closeEditBlockModal() {
+      editBlockModal.close();
+    }
+    
+    editModalFilesInput.addEventListener('change', () => {
+      editModalFileListDiv.innerHTML = '';
+      const files = editModalFilesInput.files;
+      for (const file of files) {
+        const fileItem = document.createElement('span');
+        fileItem.textContent = file.name;
+        editModalFileListDiv.appendChild(fileItem);
+      }
+    });
+
+    // Eventos
+    document.getElementById('addPageBtn').onclick = ()=>{
+      const v = document.getElementById('newPageInput').value.trim();
+      createPage(v||'Nova página');
+      document.getElementById('newPageInput').value='';
+    };
+    document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
+    
+    // Eventos dos Modais
+    document.getElementById('addTextBtn').onclick = openNewBlockModal;
+    document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
+    document.getElementById('saveModalBtn').onclick = handleNewBlock;
+
+    document.getElementById('closeEditModalBtn').onclick = closeEditBlockModal;
+    document.getElementById('saveEditModalBtn').onclick = handleEditBlock;
+
+    document.getElementById('logoutBtn').onclick = async () => {
+      await supabase.auth.signOut();
+      window.location.href = 'auth.html';
+    };
+
+    // Início
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        currentUser = session.user;
+        loadPages();
+      } else {
+        window.location.href = 'auth.html';
+      }
+    });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      currentUser = session.user;
+      loadPages();
+    } else {
+      window.location.href = 'auth.html';
+    }
+  </script>
+</body>
+</html>
+}
