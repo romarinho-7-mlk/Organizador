@@ -126,6 +126,7 @@
       <div class="card">
         <header>
           <h1 id="pageTitle">Página</h1>
+          <input type="text" id="searchBar" class="btn" placeholder="Pesquisar..." />
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
@@ -201,10 +202,14 @@
     const editModalTitleInput = document.getElementById('editModalTitleInput');
     const editModalContentTextarea = document.getElementById('editModalContentTextarea');
     const editModalFileList = document.getElementById('editModalFileList');
+    
+    // Adicionamos a barra de pesquisa
+    const searchBar = document.getElementById('searchBar');
 
     let pages = [];
     let activePageId = null;
     let currentUser = null;
+    let currentBlocks = []; // Variável para armazenar todos os blocos da página atual
 
     // --- Páginas ---
     async function loadPages(){
@@ -224,9 +229,6 @@
         activePageId = null;
       }
       
-      // Linha adicionada para diagnóstico
-      console.log('ID da página ativa carregado do LocalStorage:', activePageId);
-
       renderPages();
       render();
     }
@@ -280,7 +282,8 @@
       if(!activePageId) return [];
       const { data, error } = await supabase.from('blocks').select('*').eq('page_id', activePageId).order('created_at');
       if(error) console.error(error);
-      return data || [];
+      currentBlocks = data || []; // Armazena os blocos na variável global
+      return currentBlocks;
     }
     
     // Função para lidar com a criação de um novo bloco via modal
@@ -349,12 +352,18 @@
       }
     }
 
-    // --- Render Blocos com anexos ---
-    async function renderBlocks(){
+    // --- Render Blocos com anexos (Função atualizada com pesquisa) ---
+    function renderBlocks(searchTerm = ''){
       blocksContainer.innerHTML = '';
-      const blocks = await loadBlocks();
+      const blocksToRender = currentBlocks.filter(block => {
+        // Transforma o termo de busca e os textos do bloco em minúsculas para uma comparação sem distinção de maiúsculas/minúsculas
+        const lowerCaseSearch = searchTerm.toLowerCase();
+        const titleMatch = block.title.toLowerCase().includes(lowerCaseSearch);
+        const contentMatch = block.content.toLowerCase().includes(lowerCaseSearch);
+        return titleMatch || contentMatch;
+      });
 
-      for(const b of blocks){
+      blocksToRender.forEach(b => {
         const card = document.createElement('div');
         card.className = 'block';
 
@@ -370,15 +379,16 @@
         };
         
         blocksContainer.appendChild(card);
-      }
+      });
     }
     
-    // --- Render principal ---
+    // --- Render principal (Função atualizada para a pesquisa) ---
     async function render(){
       const p = pages.find(x=>x.id===activePageId);
       if(!p){ pageTitle.textContent = 'Nenhuma página'; return; }
       pageTitle.textContent = p.title;
-      renderBlocks();
+      await loadBlocks(); // Garante que os blocos estão carregados antes de renderizar
+      renderBlocks(searchBar.value); // Chama a renderização com o valor atual da barra de pesquisa
     }
     
     // --- Funções do Modal de Criação ---
@@ -440,6 +450,11 @@
       await supabase.auth.signOut();
       window.location.href = 'auth.html';
     };
+    
+    // Adiciona o evento de escuta para a barra de pesquisa
+    searchBar.addEventListener('input', (e) => {
+      renderBlocks(e.target.value);
+    });
 
     // Início
     let isLoaded = false;
