@@ -38,11 +38,7 @@
       flex-direction:column;
       gap:8px;
     }
-    
-    .block {
-      cursor: pointer;
-    }
-    
+
     .block h3, .block p {
         margin: 0;
     }
@@ -64,11 +60,16 @@
       padding:6px;
       border-radius:8px;
     }
-
+    
     .attachments {
       display:flex;
       flex-direction:column;
       gap:6px;
+    }
+    
+    .block-controls {
+      display: flex;
+      gap: 8px;
     }
 
     .small{font-size:13px;color:var(--muted)}
@@ -351,7 +352,6 @@
       for(const b of blocks){
         const card = document.createElement('div');
         card.className = 'block';
-        card.onclick = () => openEditBlockModal(b);
 
         // Título e Conteúdo (exibição)
         const titleDisplay = document.createElement('h3');
@@ -361,6 +361,32 @@
         const contentDisplay = document.createElement('p');
         contentDisplay.textContent = b.content;
         card.appendChild(contentDisplay);
+        
+        // Botões de controle
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'block-controls';
+
+        // Botão de editar
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn';
+        editBtn.textContent = 'Editar';
+        editBtn.onclick = (e) => {
+          e.stopPropagation();
+          openEditBlockModal(b);
+        };
+        controlsDiv.appendChild(editBtn);
+
+        // Botão de remover bloco
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn danger';
+        delBtn.textContent = 'Remover bloco';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          deleteBlock(b.id);
+        };
+        controlsDiv.appendChild(delBtn);
+
+        card.appendChild(controlsDiv);
 
         // Listar anexos
         const { data: blockAttachments } = await supabase
@@ -401,16 +427,6 @@
           attachList.appendChild(item);
         });
         card.appendChild(attachList);
-
-        // Botão remover bloco
-        const del = document.createElement('button');
-        del.className = 'btn danger';
-        del.textContent = 'Remover bloco';
-        del.onclick = (e)=> {
-          e.stopPropagation();
-          deleteBlock(b.id);
-        };
-        card.appendChild(del);
 
         blocksContainer.appendChild(card);
       }
@@ -496,7 +512,7 @@
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
 
-    document.getElementById('closeEditModalBtn').onclick = closeEditBlockModal;
+    document.getElementById('closeEditModalBtn').onclick = closeEditModalBtn;
     document.getElementById('saveEditModalBtn').onclick = handleEditBlock;
 
     document.getElementById('logoutBtn').onclick = async () => {
@@ -524,4 +540,3 @@
   </script>
 </body>
 </html>
-}
