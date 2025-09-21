@@ -116,6 +116,13 @@
       grid-template-columns: repeat(2, 1fr);
       gap: 16px;
     }
+
+    #modalFileList {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
     .attach-item {
         display: flex;
         flex-direction: column;
@@ -222,7 +229,7 @@
 
     // 🔑 Suas credenciais Supabase
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0NDUsImV4cCI6MjA3MzcxMjQ0NX0.0104192667798";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const pagesEl = document.getElementById('pages');
@@ -251,6 +258,7 @@
     let activePageId = null;
     let currentUser = null;
     let currentBlocks = []; // Variável para armazenar todos os blocos da página atual
+    let filesToUpload = []; // Array para armazenar os arquivos antes de salvar
 
     // --- Páginas ---
     async function loadPages(){
@@ -336,7 +344,6 @@
       
       const title = modalTitleInput.value.trim() || "Novo tópico";
       const content = modalContentTextarea.value.trim() || '';
-      const files = modalFilesInput.files;
 
       const { data, error } = await supabase.from('blocks').insert({
         page_id: activePageId,
@@ -349,8 +356,8 @@
         return alert(error.message);
       }
       
-      if (files.length > 0) {
-        await addFileAttachments(files, data.id);
+      if (filesToUpload.length > 0) {
+        await addFileAttachments(filesToUpload, data.id);
       }
       
       // Chama a função que fecha o modal e limpa os campos
@@ -393,7 +400,7 @@
       }
     }
 
-    // Nova função para renderizar os anexos
+    // Nova função para renderizar os anexos no modal de edição
     async function renderAttachments(blockId) {
         editModalFileList.innerHTML = '';
         const { data, error } = await supabase.from('attachments').select('*').eq('block_id', blockId);
@@ -467,6 +474,42 @@
         renderAttachments(editModalBlockId.value);
     }
 
+    // Nova função para visualizar arquivos ANTES de salvar (no modal de criação)
+    function handleFileSelection(files, container) {
+      container.innerHTML = '';
+      filesToUpload = Array.from(files);
+      filesToUpload.forEach(file => {
+          const item = document.createElement('div');
+          item.className = 'attach-item';
+          
+          if (file.type.startsWith('image/')) {
+              const img = document.createElement('img');
+              img.src = URL.createObjectURL(file);
+              item.appendChild(img);
+          } else {
+              const fileName = document.createElement('span');
+              fileName.textContent = file.name;
+              item.appendChild(fileName);
+          }
+
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+
+          // Botão para remover do "pré-upload"
+          const removeBtn = document.createElement('button');
+          removeBtn.className = 'btn danger delete-attach-btn';
+          removeBtn.textContent = 'Remover';
+          removeBtn.onclick = () => {
+              filesToUpload = filesToUpload.filter(f => f.name !== file.name);
+              item.remove();
+          };
+          actions.appendChild(removeBtn);
+
+          item.appendChild(actions);
+          container.appendChild(item);
+      });
+    }
+
 
     // --- Render Blocos com anexos (Função atualizada com pesquisa) ---
     function renderBlocks(searchTerm = ''){
@@ -518,6 +561,7 @@
       modalContentTextarea.value = '';
       modalFilesInput.value = null;
       modalFileListDiv.innerHTML = '';
+      filesToUpload = [];
     }
     
     // --- Funções do Modal de Edição ---
@@ -556,6 +600,7 @@
     document.getElementById('addTextBtn').onclick = openNewBlockModal;
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
+    modalFilesInput.addEventListener('change', (e) => handleFileSelection(e.target.files, modalFileListDiv));
 
     // Eventos do Modal de Edição
     document.getElementById('closeEditModalBtn').onclick = () => {
