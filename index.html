@@ -197,14 +197,21 @@
         const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
         let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
         if(upError) { alert(upError.message); continue; }
-        await supabase.from('attachments').insert({
+        
+        // CORREÇÃO: Adicionando user_id à inserção de anexos
+        const { error: attachError } = await supabase.from('attachments').insert({
           page_id: activePageId,
           block_id: blockId,
           name: file.name,
           size: file.size,
           type: file.type,
-          storage_path: path
+          storage_path: path,
+          user_id: currentUser.id
         });
+        
+        if (attachError) {
+          alert('Erro ao inserir anexo: ' + attachError.message);
+        }
       }
       renderBlocks();
     }
