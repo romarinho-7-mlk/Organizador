@@ -445,17 +445,14 @@
       await deleteBlock(blockId);
       editBlockModal.close();
     };
+
+    // Altere este bloco de código para remover o redirecionamento direto
     document.getElementById('logoutBtn').onclick = async () => {
       await supabase.auth.signOut();
     };
-    
-    // Adiciona o evento de escuta para a barra de pesquisa
-    searchBar.addEventListener('input', (e) => {
-      renderBlocks(e.target.value);
-    });
 
-    // Início - Ouve o estado de autenticação para carregar as páginas ou redirecionar
-    supabase.auth.onAuthStateChange((event, session) => {
+    // Mantenha este bloco de código. Ele é o responsável por redirecionar após o evento SIGNED_OUT
+    supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         window.location.href = 'auth.html';
       } else if (session) {
@@ -464,7 +461,12 @@
       }
     });
 
-    // Adiciona esta verificação para carregar a página se o usuário já estiver logado
+    // Adiciona o evento de escuta para a barra de pesquisa
+    searchBar.addEventListener('input', (e) => {
+      renderBlocks(e.target.value);
+    });
+
+    // Início - Verificação inicial da sessão ao carregar a página
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         currentUser = session.user;
