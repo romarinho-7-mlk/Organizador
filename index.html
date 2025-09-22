@@ -379,7 +379,7 @@
       // Remove o bloco do array localmente
       currentBlocks = currentBlocks.filter(b => b.id !== id);
       renderBlocks();
-      editBlockModal.close();
+      editBlockModal.close(); // Fecha o modal após a exclusão
     }
 
     // --- Anexos ---
