@@ -370,7 +370,7 @@
 
     async function deleteBlock(id){
       if(!confirm("Tem certeza que deseja excluir este bloco?")) return;
-      
+
       const { error } = await supabase.from('blocks').delete().eq('id', id);
       if(error) {
         return alert('Erro ao excluir bloco: ' + error.message);
