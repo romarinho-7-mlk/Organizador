@@ -379,6 +379,7 @@
       // Remove o bloco do array localmente
       currentBlocks = currentBlocks.filter(b => b.id !== id);
       renderBlocks();
+      editBlockModal.close();
     }
 
     // --- Anexos ---
@@ -615,7 +616,6 @@
     document.getElementById('deleteBtn').onclick = async () => {
       const blockId = editModalBlockId.value;
       await deleteBlock(blockId);
-      editBlockModal.close();
     };
     
     // Evento para lidar com a seleção de arquivos no modal de edição
