@@ -212,6 +212,8 @@
         <div id="modalFileList"></div>
       </div>
       
+      <textarea id="modalContentPart2" placeholder="Adicionar mais texto aqui"></textarea>
+
       <div class="modal-buttons">
         <button id="closeModalBtn" class="btn">Cancelar</button>
         <button id="saveModalBtn" class="btn">Salvar</button>
@@ -261,6 +263,7 @@
     const modalContentTextarea = document.getElementById('modalContent');
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
+    const modalContentPart2Textarea = document.getElementById('modalContentPart2'); // Novo elemento
 
     // Novos elementos do Modal de Edição
     const editBlockModal = document.getElementById('editBlockModal');
@@ -363,12 +366,16 @@
       
       const title = modalTitleInput.value.trim() || "Novo tópico";
       const content = modalContentTextarea.value.trim() || '';
+      const contentPart2 = modalContentPart2Textarea.value.trim() || ''; // Captura o valor do novo campo
+
+      // Concatena os textos com quebra de linha
+      const fullContent = content + '\n\n' + contentPart2;
       
       // Cria o bloco primeiro
       const { data, error } = await supabase.from('blocks').insert({
         page_id: activePageId,
         title: title,
-        content: content,
+        content: fullContent, // Salva o conteúdo combinado
         user_id: currentUser.id
       }).select().single();
 
@@ -583,6 +590,7 @@
       // Limpar os campos do modal
       modalTitleInput.value = '';
       modalContentTextarea.value = '';
+      modalContentPart2Textarea.value = ''; // Limpa o novo campo
       modalFilesInput.value = null;
       modalFileListDiv.innerHTML = '';
       filesToUpload = [];
