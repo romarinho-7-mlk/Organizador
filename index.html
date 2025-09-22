@@ -22,6 +22,32 @@
     h1{margin:0;font-size:20px}
     .controls{display:flex;gap:8px}
 
+    /* Estilo dos botoes atualizado*/
+    .btn {
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      background: linear-gradient(to right, #007bff, #0056b3);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: background 0.3s ease;
+    }
+    .btn:hover {
+        background: linear-gradient(to right, #0056b3, #007bff);
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+    .danger {
+      background: #dc3545;
+      color: white;
+    }
+    .danger:hover {
+      background: #c82333;
+    }
+
     /* GRID */
     .blocks {
       display: grid;
@@ -69,7 +95,7 @@
     }
 
     .small{font-size:13px;color:var(--muted)}
-    .danger{color:#a00303}
+    
     input[type=file]{display:none}
     @media(max-width:860px){
       .app{grid-template-columns:1fr;grid-auto-rows:auto;overflow:auto;height:auto}
@@ -370,16 +396,8 @@
 
     async function deleteBlock(id){
       if(!confirm("Tem certeza que deseja excluir este bloco?")) return;
-
-      const { error } = await supabase.from('blocks').delete().eq('id', id);
-      if(error) {
-        return alert('Erro ao excluir bloco: ' + error.message);
-      }
-      
-      // Remove o bloco do array localmente
-      currentBlocks = currentBlocks.filter(b => b.id !== id);
-      renderBlocks();
-      editBlockModal.close(); // Fecha o modal após a exclusão
+      await supabase.from('blocks').delete().eq('id', id);
+      render();
     }
 
     // --- Anexos ---
@@ -616,6 +634,7 @@
     document.getElementById('deleteBtn').onclick = async () => {
       const blockId = editModalBlockId.value;
       await deleteBlock(blockId);
+      editBlockModal.close();
     };
     
     // Evento para lidar com a seleção de arquivos no modal de edição
