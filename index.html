@@ -202,9 +202,10 @@
     <div class="modal-content">
       <h2>Novo Bloco de Texto</h2>
       <input type="text" id="modalTitle" placeholder="Novo tópico" class="title-input" />
-      <textarea id="modalContent" placeholder="Adicionar texto aqui"></textarea>
       
-      <div class="file-upload">
+      <button id="addContentBtn" class="btn">Adicionar texto</button>
+      
+      <div id="textContainer"></div> <div class="file-upload">
         <label class="btn">
           Adicionar arquivos
           <input type="file" id="modalFiles" multiple style="display: none;" />
@@ -212,8 +213,6 @@
         <div id="modalFileList"></div>
       </div>
       
-      <textarea id="modalContentPart2" placeholder="Adicionar mais texto aqui"></textarea>
-
       <div class="modal-buttons">
         <button id="closeModalBtn" class="btn">Cancelar</button>
         <button id="saveModalBtn" class="btn">Salvar</button>
@@ -260,10 +259,12 @@
     // Elementos do Modal de Criação
     const newBlockModal = document.getElementById('newBlockModal');
     const modalTitleInput = document.getElementById('modalTitle');
-    const modalContentTextarea = document.getElementById('modalContent');
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
-    const modalContentPart2Textarea = document.getElementById('modalContentPart2'); // Novo elemento
+    
+    // Novos elementos para o botão e container de texto
+    const addContentBtn = document.getElementById('addContentBtn');
+    const textContainer = document.getElementById('textContainer');
 
     // Novos elementos do Modal de Edição
     const editBlockModal = document.getElementById('editBlockModal');
@@ -365,17 +366,16 @@
       }
       
       const title = modalTitleInput.value.trim() || "Novo tópico";
-      const content = modalContentTextarea.value.trim() || '';
-      const contentPart2 = modalContentPart2Textarea.value.trim() || ''; // Captura o valor do novo campo
-
-      // Concatena os textos com quebra de linha
-      const fullContent = content + '\n\n' + contentPart2;
+      
+      // Captura o conteúdo da caixa de texto, se ela existir
+      const modalContentTextarea = document.getElementById('modalContent');
+      const content = modalContentTextarea ? modalContentTextarea.value.trim() : '';
       
       // Cria o bloco primeiro
       const { data, error } = await supabase.from('blocks').insert({
         page_id: activePageId,
         title: title,
-        content: fullContent, // Salva o conteúdo combinado
+        content: content,
         user_id: currentUser.id
       }).select().single();
 
@@ -589,11 +589,13 @@
       newBlockModal.close();
       // Limpar os campos do modal
       modalTitleInput.value = '';
-      modalContentTextarea.value = '';
-      modalContentPart2Textarea.value = ''; // Limpa o novo campo
       modalFilesInput.value = null;
       modalFileListDiv.innerHTML = '';
       filesToUpload = [];
+      
+      // Limpa o container de texto e reexibe o botão "Adicionar texto"
+      textContainer.innerHTML = '';
+      addContentBtn.style.display = 'block';
     }
     
     // --- Funções do Modal de Edição ---
@@ -619,7 +621,7 @@
       editBlockModal.close();
       render();
     }
-
+    
     // Eventos
     document.getElementById('addPageBtn').onclick = ()=>{
       const v = document.getElementById('newPageInput').value.trim();
@@ -633,6 +635,20 @@
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
     modalFilesInput.addEventListener('change', (e) => handleFileSelection(e.target.files, modalFileListDiv));
+    
+    // Lógica para o novo botão "Adicionar texto"
+    addContentBtn.onclick = () => {
+        // Cria a caixa de texto se ela ainda não existir
+        if (!document.getElementById('modalContent')) {
+            const textarea = document.createElement('textarea');
+            textarea.id = 'modalContent';
+            textarea.placeholder = 'Adicionar texto aqui';
+            textContainer.appendChild(textarea);
+            
+            // Oculta o botão "Adicionar texto" após a caixa ser criada
+            addContentBtn.style.display = 'none';
+        }
+    };
 
     // Eventos do Modal de Edição
     document.getElementById('closeEditModalBtn').onclick = () => {
