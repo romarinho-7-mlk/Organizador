@@ -203,9 +203,13 @@
       <h2>Novo Bloco de Texto</h2>
       <input type="text" id="modalTitle" placeholder="Novo tópico" class="title-input" />
       
-      <button id="addContentBtn" class="btn">Adicionar texto</button>
+      <div id="textBlocksContainer">
+        <textarea placeholder="Adicionar texto aqui"></textarea>
+      </div>
       
-      <div id="textContainer"></div> <div class="file-upload">
+      <button id="addTextFieldBtn" class="btn">Adicionar outro bloco de texto</button>
+      
+      <div class="file-upload">
         <label class="btn">
           Adicionar arquivos
           <input type="file" id="modalFiles" multiple style="display: none;" />
@@ -261,10 +265,8 @@
     const modalTitleInput = document.getElementById('modalTitle');
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
-    
-    // Novos elementos para o botão e container de texto
-    const addContentBtn = document.getElementById('addContentBtn');
-    const textContainer = document.getElementById('textContainer');
+    const textBlocksContainer = document.getElementById('textBlocksContainer');
+    const addTextFieldBtn = document.getElementById('addTextFieldBtn');
 
     // Novos elementos do Modal de Edição
     const editBlockModal = document.getElementById('editBlockModal');
@@ -367,29 +369,34 @@
       
       const title = modalTitleInput.value.trim() || "Novo tópico";
       
-      // Captura o conteúdo da caixa de texto, se ela existir
-      const modalContentTextarea = document.getElementById('modalContent');
-      const content = modalContentTextarea ? modalContentTextarea.value.trim() : '';
+      // Pega todos os textareas criados dinamicamente
+      const textareas = textBlocksContainer.querySelectorAll('textarea');
       
-      // Cria o bloco primeiro
-      const { data, error } = await supabase.from('blocks').insert({
-        page_id: activePageId,
-        title: title,
-        content: content,
-        user_id: currentUser.id
-      }).select().single();
-
-      if (error) {
-        return alert(error.message);
+      // Salva cada bloco de texto separadamente
+      for (const textarea of textareas) {
+          const content = textarea.value.trim();
+          if (content) {
+            const { error } = await supabase.from('blocks').insert({
+              page_id: activePageId,
+              title: title,
+              content: content,
+              user_id: currentUser.id
+            });
+            if (error) {
+              return alert('Erro ao salvar bloco: ' + error.message);
+            }
+          }
       }
       
       // Em seguida, adiciona os anexos se existirem
       if (filesToUpload.length > 0) {
-        await addFileAttachments(filesToUpload, data.id);
+        // Encontra o ID do último bloco criado para associar os arquivos
+        const { data: lastBlock } = await supabase.from('blocks')
+          .select('id').eq('page_id', activePageId).order('created_at', { ascending: false }).limit(1).single();
+        if (lastBlock) {
+          await addFileAttachments(filesToUpload, lastBlock.id);
+        }
       }
-      
-      // Adiciona o novo bloco à lista local
-      currentBlocks.push(data);
       
       // Chama a função que fecha o modal e limpa os campos
       closeNewBlockModal();
@@ -593,9 +600,8 @@
       modalFileListDiv.innerHTML = '';
       filesToUpload = [];
       
-      // Limpa o container de texto e reexibe o botão "Adicionar texto"
-      textContainer.innerHTML = '';
-      addContentBtn.style.display = 'block';
+      // Limpa todos os textareas do container dinâmico
+      textBlocksContainer.innerHTML = '<textarea placeholder="Adicionar texto aqui"></textarea>';
     }
     
     // --- Funções do Modal de Edição ---
@@ -636,18 +642,11 @@
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
     modalFilesInput.addEventListener('change', (e) => handleFileSelection(e.target.files, modalFileListDiv));
     
-    // Lógica para o novo botão "Adicionar texto"
-    addContentBtn.onclick = () => {
-        // Cria a caixa de texto se ela ainda não existir
-        if (!document.getElementById('modalContent')) {
-            const textarea = document.createElement('textarea');
-            textarea.id = 'modalContent';
-            textarea.placeholder = 'Adicionar texto aqui';
-            textContainer.appendChild(textarea);
-            
-            // Oculta o botão "Adicionar texto" após a caixa ser criada
-            addContentBtn.style.display = 'none';
-        }
+    // Lógica para o novo botão "Adicionar outro bloco de texto"
+    addTextFieldBtn.onclick = () => {
+        const textarea = document.createElement('textarea');
+        textarea.placeholder = 'Adicionar outro texto aqui';
+        textBlocksContainer.appendChild(textarea);
     };
 
     // Eventos do Modal de Edição
