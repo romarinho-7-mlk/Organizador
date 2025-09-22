@@ -355,6 +355,9 @@
         await addFileAttachments(filesToUpload, data.id);
       }
       
+      // Adiciona o novo bloco à lista local
+      currentBlocks.push(data);
+      
       // Chama a função que fecha o modal e limpa os campos
       closeNewBlockModal();
       
