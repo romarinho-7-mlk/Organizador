@@ -358,7 +358,7 @@
       // Chama a função que fecha o modal e limpa os campos
       closeNewBlockModal();
       
-      renderBlocks(); // Recarrega os blocos
+      render(); // **AQUI ESTÁ A CORREÇÃO**
     }
 
     async function updateBlock(id, fields){
@@ -367,15 +367,8 @@
 
     async function deleteBlock(id){
       if(!confirm("Tem certeza que deseja excluir este bloco?")) return;
-      
-      const { error } = await supabase.from('blocks').delete().eq('id', id);
-      if(error) {
-        return alert('Erro ao excluir bloco: ' + error.message);
-      }
-      
-      // Remove o bloco do array localmente
-      currentBlocks = currentBlocks.filter(b => b.id !== id);
-      renderBlocks();
+      await supabase.from('blocks').delete().eq('id', id);
+      render();
     }
 
     // --- Anexos ---
@@ -478,8 +471,9 @@
 
     // Nova função para visualizar arquivos ANTES de salvar (no modal de criação)
     function handleFileSelection(files, container) {
+      filesToUpload = filesToUpload.concat(Array.from(files));
+      
       container.innerHTML = '';
-      filesToUpload = Array.from(files);
       filesToUpload.forEach(file => {
           const item = document.createElement('div');
           item.className = 'attach-item';
