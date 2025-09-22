@@ -14,10 +14,14 @@
     .pages{flex:1;overflow:auto}
     .page{background:var(--glass);padding:8px;border-radius:8px;margin-bottom:8px;cursor:pointer}
     .page.active{outline:2px solid rgba(255, 3, 3, 0.069)}
-    
-    /* Alterado para centralizar a div na coluna */
-    .new-page{display:flex;gap:8px; align-self: center;}
-    
+    .new-page{display:flex;gap:8px}
+    .btn{background:white;border:1px solid rgba(116, 116, 116, 0.963);padding:8px;border-radius:8px;color:var(--muted);cursor:pointer}
+    .main{padding:18px;}
+    .card{background:#f0f9f9;padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(1, 1, 1, 0.6)}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    h1{margin:0;font-size:20px}
+    .controls{display:flex;gap:8px}
+
     /* Estilo dos botoes atualizado*/
     .btn {
       border: none;
@@ -43,12 +47,6 @@
     .danger:hover {
       background: #c82333;
     }
-    
-    .main{padding:18px;}
-    .card{background:#f0f9f9;padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(1, 1, 1, 0.6)}
-    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-    h1{margin:0;font-size:20px}
-    .controls{display:flex;gap:8px}
 
     /* GRID */
     .blocks {
@@ -285,7 +283,7 @@
     async function loadPages(){
       if (!currentUser) return;
       
-      const { data, error } = await supabase.from('pages').select('*').eq('user_id', currentUser.id).order('created_at', { ascending:false });
+      const { data, error } = await supabase.from('pages').select('*').order('created_at', { ascending:false });
       if(error) console.error(error);
       pages = data || [];
       
