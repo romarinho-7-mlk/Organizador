@@ -164,65 +164,121 @@
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // --- Função handler para upload de imagens ---
-    function imageHandler(quill) {
-      const input = document.createElement('input');
-      input.setAttribute('type', 'file');
-      input.setAttribute('accept', 'image/*');
-      input.click();
-
-      input.onchange = async () => {
-        const file = input.files[0];
-        if (!file) return;
-
-        const filePath = `editor/${Date.now()}_${file.name}`;
-
-        const { error } = await supabase.storage.from('uploads').upload(filePath, file);
-        if (error) {
-          alert('Erro ao enviar imagem: ' + error.message);
-          return;
-        }
-
-        const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(filePath);
-
-        const range = quill.getSelection();
-        quill.insertEmbed(range.index, 'image', publicUrl);
-      };
-    }
-
     let quillNewBlock, quillEditBlock;
     window.addEventListener("DOMContentLoaded", () => {
       quillNewBlock = new Quill('#modalEditor', {
         theme: 'snow',
         placeholder: 'Adicionar texto aqui...',
         modules: {
-          toolbar: {
-            container: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
-            handlers: {
-              image: function() { imageHandler(quillNewBlock); }
-            }
-          },
+          toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
           imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
         }
       });
-
       quillEditBlock = new Quill('#editModalEditor', {
         theme: 'snow',
         placeholder: 'Editar conteúdo...',
         modules: {
-          toolbar: {
-            container: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
-            handlers: {
-              image: function() { imageHandler(quillEditBlock); }
-            }
-          },
+          toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
           imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
         }
       });
     });
 
-    // --- Resto do código (Supabase, páginas, blocos, modais, eventos) igual ao que já fizemos ---
-    // (mantém salvar/editar blocos, anexos, autenticação etc.)
+    // --- Variáveis globais ---
+    const pagesEl = document.getElementById('pages');
+    const blocksContainer = document.getElementById('blocksContainer');
+    const pageTitle = document.getElementById('pageTitle');
+    const newBlockModal = document.getElementById('newBlockModal');
+    const modalTitleInput = document.getElementById('modalTitle');
+    const modalFilesInput = document.getElementById('modalFiles');
+    const modalFileListDiv = document.getElementById('modalFileList');
+    const editBlockModal = document.getElementById('editBlockModal');
+    const editModalBlockId = document.getElementById('editModalBlockId');
+    const editModalTitleInput = document.getElementById('editModalTitleInput');
+    const editModalFileList = document.getElementById('editModalFileList');
+    const editModalFilesInput = document.getElementById('editModalFilesInput');
+    const searchBar = document.getElementById('searchBar');
+
+    let pages = [], activePageId = null, currentUser = null, currentBlocks = [], filesToUpload = [];
+
+    // --- Páginas ---
+    async function loadPages(){
+      if (!currentUser) return;
+      const { data } = await supabase.from('pages').select('*').order('created_at',{ascending:false});
+      pages = data || [];
+      activePageId = pages[0]?.id || null;
+      renderPages(); render();
+    }
+    async function createPage(title){
+      if (!currentUser) return alert("Precisa logar");
+      const { data } = await supabase.from('pages').insert({ title, user_id: currentUser.id }).select().single();
+      pages.unshift(data); activePageId=data.id; renderPages(); render();
+    }
+    async function deletePage(id){
+      if(!confirm("Excluir página?")) return;
+      await supabase.from('pages').delete().eq('id',id);
+      pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; renderPages(); render();
+    }
+    function renderPages(){
+      pagesEl.innerHTML=''; 
+      pages.forEach(p=>{
+        const div=document.createElement('div');
+        div.className='page'+(p.id===activePageId?' active':'');
+        div.textContent=p.title;
+        div.onclick=()=>{activePageId=p.id; render();};
+        pagesEl.appendChild(div);
+      });
+    }
+
+    // --- Blocos ---
+    async function loadBlocks(){
+      if(!activePageId) return [];
+      const { data } = await supabase.from('blocks').select('*').eq('page_id',activePageId).order('created_at');
+      currentBlocks=data||[]; return currentBlocks;
+    }
+    async function handleNewBlock(){
+      if(!currentUser||!activePageId) return alert("Precisa logar");
+      const title=modalTitleInput.value.trim()||"Novo tópico";
+      const content=quillNewBlock.root.innerHTML.trim();
+      const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
+      currentBlocks.push(data); closeNewBlockModal(); renderBlocks();
+    }
+    async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
+    async function deleteBlock(id){ if(confirm("Excluir bloco?")){await supabase.from('blocks').delete().eq('id',id); render();} }
+
+    function renderBlocks(term=''){
+      blocksContainer.innerHTML='';
+      currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content.toLowerCase().includes(term.toLowerCase()))
+      .forEach(b=>{
+        const card=document.createElement('div');
+        card.className='block';
+        card.innerHTML=`<h3>${b.title}</h3><div>${b.content}</div>`;
+        card.onclick=()=>openEditModal(b);
+        blocksContainer.appendChild(card);
+      });
+    }
+    async function render(){ const p=pages.find(x=>x.id===activePageId); if(!p){pageTitle.textContent='Nenhuma página';return;} pageTitle.textContent=p.title; await loadBlocks(); renderBlocks(searchBar.value); }
+
+    // --- Modais ---
+    function openNewBlockModal(){ newBlockModal.showModal(); }
+    function closeNewBlockModal(){ newBlockModal.close(); modalTitleInput.value=''; quillNewBlock.root.innerHTML=''; modalFilesInput.value=null; modalFileListDiv.innerHTML=''; filesToUpload=[]; }
+    function openEditModal(b){ editModalBlockId.value=b.id; editModalTitleInput.value=b.title; quillEditBlock.root.innerHTML=b.content||''; editBlockModal.showModal(); }
+    async function handleSaveEdit(){ await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:quillEditBlock.root.innerHTML.trim()}); editBlockModal.close(); render(); }
+
+    // --- Eventos ---
+    document.getElementById('addPageBtn').onclick=()=>{createPage(document.getElementById('newPageInput').value.trim()||'Nova página');};
+    document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
+    document.getElementById('addTextBtn').onclick=openNewBlockModal;
+    document.getElementById('closeModalBtn').onclick=closeNewBlockModal;
+    document.getElementById('saveModalBtn').onclick=handleNewBlock;
+    document.getElementById('closeEditModalBtn').onclick=()=>editBlockModal.close();
+    document.getElementById('saveEditModalBtn').onclick=handleSaveEdit;
+    document.getElementById('deleteBtn').onclick=()=>deleteBlock(editModalBlockId.value);
+    document.getElementById('logoutBtn').onclick=async()=>{await supabase.auth.signOut();};
+    searchBar.oninput=(e)=>renderBlocks(e.target.value);
+
+    supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
+    supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
   </script>
 </body>
 </html>
