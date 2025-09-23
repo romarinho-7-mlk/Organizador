@@ -38,7 +38,7 @@
     .danger { background: #dc3545; color: white; }
     .danger:hover { background: #c82333; }
 
-    .blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 8px 0; }
     .block, .attach-item {
       background:#01646415;
       padding:12px;
@@ -48,6 +48,7 @@
       flex-direction:column;
       gap:8px;
       cursor: pointer;
+      min-height: 80px;
     }
     .block h3, .block p { margin: 0; }
 
@@ -66,7 +67,7 @@
       padding: 24px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
       max-width: 900px;
-      width: 90%;
+      width: 95%;
       background: #fff;
     }
     dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
@@ -77,10 +78,12 @@
     #editModalFileList, #modalFileList {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
+      gap: 12px;
     }
     .attach-item img { max-width: 100%; height: auto; margin-bottom: 8px; border-radius: 6px; }
     .attach-item .actions { display: flex; gap: 8px; }
+    /* Quill editor container sizing */
+    #modalEditor, #editModalEditor { min-height: 180px; background: #fff; border-radius: 6px; }
   </style>
 
   <!-- Quill Styles -->
@@ -91,8 +94,8 @@
     <aside class="sidebar card">
       <div class="logo">Suport - ADD </div>
       <div class="pages" id="pages"></div>
-      <div class="new-page">
-        <input id="newPageInput" class="btn" placeholder="Nome da página" />
+      <div class="new-page" style="gap:8px">
+        <input id="newPageInput" class="title-input" placeholder="Nome da página" />
         <button id="addPageBtn" class="btn">Criar</button>
       </div>
     </aside>
@@ -101,7 +104,7 @@
       <div class="card">
         <header>
           <h1 id="pageTitle">Página</h1>
-          <input type="text" id="searchBar" class="btn" placeholder="Pesquisar..." />
+          <input type="text" id="searchBar" class="title-input" placeholder="Pesquisar..." />
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
@@ -120,7 +123,8 @@
       <input type="text" id="modalTitle" placeholder="Novo tópico" class="title-input" />
       <div id="modalEditor"></div>
       <div class="file-upload">
-        <label class="btn">Adicionar arquivos
+        <label class="btn" style="display:inline-flex;align-items:center;gap:8px">
+          Adicionar arquivos
           <input type="file" id="modalFiles" multiple />
         </label>
         <div id="modalFileList"></div>
@@ -140,7 +144,8 @@
       <input type="text" id="editModalTitleInput" class="title-input" />
       <div id="editModalEditor"></div>
       <div class="file-upload">
-        <label class="btn">Adicionar arquivos
+        <label class="btn" style="display:inline-flex;align-items:center;gap:8px">
+          Adicionar arquivos
           <input type="file" id="editModalFilesInput" multiple />
         </label>
       </div>
@@ -160,125 +165,480 @@
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+    // === Supabase config ===
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let quillNewBlock, quillEditBlock;
-    window.addEventListener("DOMContentLoaded", () => {
-      quillNewBlock = new Quill('#modalEditor', {
-        theme: 'snow',
-        placeholder: 'Adicionar texto aqui...',
-        modules: {
-          toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
-          imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
-        }
-      });
-      quillEditBlock = new Quill('#editModalEditor', {
-        theme: 'snow',
-        placeholder: 'Editar conteúdo...',
-        modules: {
-          toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
-          imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
-        }
-      });
-    });
+    // Register image resize module if available
+    if (window.ImageResize) {
+      try { Quill.register('modules/imageResize', window.ImageResize); } catch(e){ /* already registered */ }
+    }
 
-    // --- Variáveis globais ---
+    // --- DOM elements ---
     const pagesEl = document.getElementById('pages');
     const blocksContainer = document.getElementById('blocksContainer');
     const pageTitle = document.getElementById('pageTitle');
+
     const newBlockModal = document.getElementById('newBlockModal');
     const modalTitleInput = document.getElementById('modalTitle');
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
+
     const editBlockModal = document.getElementById('editBlockModal');
     const editModalBlockId = document.getElementById('editModalBlockId');
     const editModalTitleInput = document.getElementById('editModalTitleInput');
-    const editModalFileList = document.getElementById('editModalFileList');
     const editModalFilesInput = document.getElementById('editModalFilesInput');
+    const editModalFileList = document.getElementById('editModalFileList');
+
     const searchBar = document.getElementById('searchBar');
 
+    // --- State ---
+    let quillNewBlock, quillEditBlock;
     let pages = [], activePageId = null, currentUser = null, currentBlocks = [], filesToUpload = [];
 
-    // --- Páginas ---
-    async function loadPages(){
+    // --- Image handler: upload to Supabase and insert public URL into Quill ---
+    async function uploadImageFileToSupabase(file, folder = 'editor') {
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      const path = `${folder}/${Date.now()}_${safeName}`;
+      // upload
+      const { error } = await supabase.storage.from('uploads').upload(path, file, { cacheControl: '3600', upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from('uploads').getPublicUrl(path);
+      return data?.publicUrl;
+    }
+
+    function imageHandlerFactory(quillInstance) {
+      return function() {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = async () => {
+          const file = input.files[0];
+          if (!file) return;
+          try {
+            // show a temporary placeholder (optional)
+            const range = quillInstance.getSelection(true);
+            // Insert a loading placeholder (transparent gif or text) while uploading
+            quillInstance.insertEmbed(range.index, 'image', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
+            // Upload to Supabase
+            const publicUrl = await uploadImageFileToSupabase(file, 'editor');
+            // Replace the placeholder with the real URL
+            // find the index of the placeholder image: we'll remove it and insert the real one at same index
+            quillInstance.deleteText(range.index, 1);
+            quillInstance.insertEmbed(range.index, 'image', publicUrl);
+            // move cursor after image
+            quillInstance.setSelection(range.index + 1, 0);
+          } catch (err) {
+            alert('Erro ao enviar imagem: ' + (err.message || err));
+            console.error(err);
+          }
+        };
+      };
+    }
+
+    // Initialize Quill editors after DOM ready
+    window.addEventListener('DOMContentLoaded', () => {
+      const toolbarOptions = [
+        ['bold','italic','underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link','image']
+      ];
+
+      quillNewBlock = new Quill('#modalEditor', {
+        theme: 'snow',
+        placeholder: 'Adicionar texto aqui...',
+        modules: {
+          toolbar: {
+            container: toolbarOptions,
+            handlers: {
+              image: imageHandlerFactory(() => quillNewBlock)() // placeholder; will be replaced below
+            }
+          },
+          imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
+        }
+      });
+
+      quillEditBlock = new Quill('#editModalEditor', {
+        theme: 'snow',
+        placeholder: 'Editar conteúdo...',
+        modules: {
+          toolbar: {
+            container: toolbarOptions,
+            handlers: {
+              image: imageHandlerFactory(() => quillEditBlock)() // placeholder; will be replaced below
+            }
+          },
+          imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
+        }
+      });
+
+      // Replace handlers correctly (to capture instances)
+      quillNewBlock.getModule('toolbar').addHandler('image', imageHandlerFactory(quillNewBlock));
+      quillEditBlock.getModule('toolbar').addHandler('image', imageHandlerFactory(quillEditBlock));
+    });
+
+    // --- Pages ---
+    async function loadPages() {
       if (!currentUser) return;
-      const { data } = await supabase.from('pages').select('*').order('created_at',{ascending:false});
+      const { data, error } = await supabase.from('pages').select('*').order('created_at', { ascending: false });
+      if (error) {
+        console.error(error);
+        return;
+      }
       pages = data || [];
+      // restore active page from localStorage if exists & valid
+      const saved = localStorage.getItem('activePageId');
+      if (saved && pages.some(p => p.id === saved)) {
+        activePageId = saved;
+      } else {
+        activePageId = pages[0]?.id || null;
+      }
+      renderPages();
+      await render();
+    }
+
+    async function createPage(title) {
+      if (!currentUser) return alert('Você precisa estar logado para criar página.');
+      const { data, error } = await supabase.from('pages').insert({ title, user_id: currentUser.id }).select().single();
+      if (error) return alert(error.message);
+      pages.unshift(data);
+      activePageId = data.id;
+      localStorage.setItem('activePageId', activePageId);
+      renderPages();
+      render();
+    }
+
+    async function deletePage(id) {
+      if (!confirm('Excluir página?')) return;
+      const { error } = await supabase.from('pages').delete().eq('id', id);
+      if (error) return alert(error.message);
+      pages = pages.filter(p => p.id !== id);
       activePageId = pages[0]?.id || null;
-      renderPages(); render();
+      if (activePageId) localStorage.setItem('activePageId', activePageId);
+      else localStorage.removeItem('activePageId');
+      renderPages();
+      render();
     }
-    async function createPage(title){
-      if (!currentUser) return alert("Precisa logar");
-      const { data } = await supabase.from('pages').insert({ title, user_id: currentUser.id }).select().single();
-      pages.unshift(data); activePageId=data.id; renderPages(); render();
-    }
-    async function deletePage(id){
-      if(!confirm("Excluir página?")) return;
-      await supabase.from('pages').delete().eq('id',id);
-      pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; renderPages(); render();
-    }
-    function renderPages(){
-      pagesEl.innerHTML=''; 
-      pages.forEach(p=>{
-        const div=document.createElement('div');
-        div.className='page'+(p.id===activePageId?' active':'');
-        div.textContent=p.title;
-        div.onclick=()=>{activePageId=p.id; render();};
+
+    function renderPages() {
+      pagesEl.innerHTML = '';
+      pages.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'page' + (p.id === activePageId ? ' active' : '');
+        div.textContent = p.title;
+        div.onclick = () => {
+          activePageId = p.id;
+          localStorage.setItem('activePageId', activePageId);
+          render();
+        };
         pagesEl.appendChild(div);
       });
     }
 
-    // --- Blocos ---
-    async function loadBlocks(){
-      if(!activePageId) return [];
-      const { data } = await supabase.from('blocks').select('*').eq('page_id',activePageId).order('created_at');
-      currentBlocks=data||[]; return currentBlocks;
+    // --- Blocks & Attachments ---
+    async function loadBlocks() {
+      if (!activePageId) return [];
+      const { data, error } = await supabase.from('blocks').select('*').eq('page_id', activePageId).order('created_at');
+      if (error) {
+        console.error(error);
+        return [];
+      }
+      currentBlocks = data || [];
+      return currentBlocks;
     }
-    async function handleNewBlock(){
-      if(!currentUser||!activePageId) return alert("Precisa logar");
-      const title=modalTitleInput.value.trim()||"Novo tópico";
-      const content=quillNewBlock.root.innerHTML.trim();
-      const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
-      currentBlocks.push(data); closeNewBlockModal(); renderBlocks();
-    }
-    async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
-    async function deleteBlock(id){ if(confirm("Excluir bloco?")){await supabase.from('blocks').delete().eq('id',id); render();} }
 
-    function renderBlocks(term=''){
-      blocksContainer.innerHTML='';
-      currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content.toLowerCase().includes(term.toLowerCase()))
-      .forEach(b=>{
-        const card=document.createElement('div');
-        card.className='block';
-        card.innerHTML=`<h3>${b.title}</h3><div>${b.content}</div>`;
-        card.onclick=()=>openEditModal(b);
+    async function addFileAttachments(fileList, blockId) {
+      const arr = Array.from(fileList);
+      for (const file of arr) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const path = `${activePageId}/${blockId}/${Date.now()}_${safeName}`;
+        const { error: upError } = await supabase.storage.from('uploads').upload(path, file, { upsert: false });
+        if (upError) {
+          console.error('Upload error', upError);
+          alert('Erro ao enviar arquivo: ' + upError.message);
+          continue;
+        }
+        const { error: attachError } = await supabase.from('attachments').insert({
+          page_id: activePageId,
+          block_id: blockId,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          storage_path: path,
+          user_id: currentUser.id
+        });
+        if (attachError) {
+          console.error('Attach DB error', attachError);
+          alert('Erro ao registrar anexo: ' + attachError.message);
+        }
+      }
+    }
+
+    async function renderAttachments(blockId) {
+      editModalFileList.innerHTML = '';
+      const { data, error } = await supabase.from('attachments').select('*').eq('block_id', blockId);
+      if (error) {
+        console.error('Erro ao carregar anexos:', error);
+        return;
+      }
+      data.forEach(attachment => {
+        const item = document.createElement('div');
+        item.className = 'attach-item';
+
+        if (attachment.type && attachment.type.startsWith('image/')) {
+          const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(attachment.storage_path);
+          const img = document.createElement('img');
+          img.src = publicUrl;
+          item.appendChild(img);
+        } else {
+          const fileName = document.createElement('div');
+          fileName.textContent = attachment.name;
+          item.appendChild(fileName);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const downloadBtn = document.createElement('button');
+        downloadBtn.className = 'btn';
+        downloadBtn.textContent = 'Download';
+        downloadBtn.onclick = () => downloadAttachment(attachment.storage_path, attachment.name);
+        actions.appendChild(downloadBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn danger';
+        deleteBtn.textContent = 'Excluir';
+        deleteBtn.onclick = () => deleteAttachment(attachment.id, attachment.storage_path);
+        actions.appendChild(deleteBtn);
+
+        item.appendChild(actions);
+        editModalFileList.appendChild(item);
+      });
+    }
+
+    async function downloadAttachment(storagePath, fileName) {
+      const { data, error } = await supabase.storage.from('uploads').download(storagePath);
+      if (error) return alert('Erro ao baixar arquivo: ' + error.message);
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    async function deleteAttachment(id, storagePath) {
+      if (!confirm('Tem certeza que deseja excluir este anexo?')) return;
+      const { error: dbError } = await supabase.from('attachments').delete().eq('id', id);
+      if (dbError) return alert('Erro ao excluir anexo: ' + dbError.message);
+      const { error: storageError } = await supabase.storage.from('uploads').remove([storagePath]);
+      if (storageError) console.error('Erro ao remover do storage', storageError);
+      alert('Anexo excluído com sucesso!');
+      renderAttachments(editModalBlockId.value);
+    }
+
+    // --- Render blocks (with search) ---
+    function renderBlocks(searchTerm = '') {
+      blocksContainer.innerHTML = '';
+      const term = (searchTerm || '').toLowerCase();
+      currentBlocks.filter(block => {
+        return block.title.toLowerCase().includes(term) || block.content.toLowerCase().includes(term);
+      }).forEach(b => {
+        const card = document.createElement('div');
+        card.className = 'block';
+        card.innerHTML = `<h3>${escapeHtml(b.title)}</h3><div>${b.content}</div>`;
+        card.onclick = () => openEditModal(b);
         blocksContainer.appendChild(card);
       });
     }
-    async function render(){ const p=pages.find(x=>x.id===activePageId); if(!p){pageTitle.textContent='Nenhuma página';return;} pageTitle.textContent=p.title; await loadBlocks(); renderBlocks(searchBar.value); }
 
-    // --- Modais ---
-    function openNewBlockModal(){ newBlockModal.showModal(); }
-    function closeNewBlockModal(){ newBlockModal.close(); modalTitleInput.value=''; quillNewBlock.root.innerHTML=''; modalFilesInput.value=null; modalFileListDiv.innerHTML=''; filesToUpload=[]; }
-    function openEditModal(b){ editModalBlockId.value=b.id; editModalTitleInput.value=b.title; quillEditBlock.root.innerHTML=b.content||''; editBlockModal.showModal(); }
-    async function handleSaveEdit(){ await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:quillEditBlock.root.innerHTML.trim()}); editBlockModal.close(); render(); }
+    // escape basic text to avoid accidental injection in title (content is HTML saved by Quill)
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
-    // --- Eventos ---
-    document.getElementById('addPageBtn').onclick=()=>{createPage(document.getElementById('newPageInput').value.trim()||'Nova página');};
-    document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
-    document.getElementById('addTextBtn').onclick=openNewBlockModal;
-    document.getElementById('closeModalBtn').onclick=closeNewBlockModal;
-    document.getElementById('saveModalBtn').onclick=handleNewBlock;
-    document.getElementById('closeEditModalBtn').onclick=()=>editBlockModal.close();
-    document.getElementById('saveEditModalBtn').onclick=handleSaveEdit;
-    document.getElementById('deleteBtn').onclick=()=>deleteBlock(editModalBlockId.value);
-    document.getElementById('logoutBtn').onclick=async()=>{await supabase.auth.signOut();};
-    searchBar.oninput=(e)=>renderBlocks(e.target.value);
+    async function render() {
+      const p = pages.find(x => x.id === activePageId);
+      if (!p) { pageTitle.textContent = 'Nenhuma página'; blocksContainer.innerHTML = ''; return; }
+      pageTitle.textContent = p.title;
+      await loadBlocks();
+      renderBlocks(searchBar.value);
+    }
 
-    supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
-    supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
+    // --- Create / Update / Delete blocks ---
+    async function handleNewBlock() {
+      if (!currentUser || !activePageId) return alert('Você precisa estar logado e ter uma página selecionada.');
+      const title = modalTitleInput.value.trim() || 'Novo tópico';
+      const content = quillNewBlock.root.innerHTML.trim();
+      const { data, error } = await supabase.from('blocks').insert({
+        page_id: activePageId,
+        title,
+        content,
+        user_id: currentUser.id
+      }).select().single();
+      if (error) return alert('Erro ao criar bloco: ' + error.message);
+      // upload attachments queued
+      if (filesToUpload.length > 0) {
+        await addFileAttachments(filesToUpload, data.id);
+      }
+      currentBlocks.push(data);
+      closeNewBlockModal();
+      renderBlocks();
+    }
+
+    async function updateBlock(id, fields) {
+      const { error } = await supabase.from('blocks').update(fields).eq('id', id);
+      if (error) console.error('Erro update block', error);
+    }
+
+    async function deleteBlock(id) {
+      if (!confirm('Tem certeza que deseja excluir este bloco?')) return;
+      const { error } = await supabase.from('blocks').delete().eq('id', id);
+      if (error) return alert('Erro ao excluir bloco: ' + error.message);
+      // optionally delete attachments associated? (not implemented to avoid accidental data loss)
+      await render();
+    }
+
+    // --- Modals ---
+    function openNewBlockModal() {
+      modalTitleInput.value = '';
+      quillNewBlock.root.innerHTML = '';
+      modalFileListDiv.innerHTML = '';
+      filesToUpload = [];
+      newBlockModal.showModal();
+    }
+
+    function closeNewBlockModal() {
+      newBlockModal.close();
+      modalTitleInput.value = '';
+      quillNewBlock.root.innerHTML = '';
+      modalFilesInput.value = null;
+      modalFileListDiv.innerHTML = '';
+      filesToUpload = [];
+    }
+
+    function openEditModal(blockData) {
+      editModalBlockId.value = blockData.id;
+      editModalTitleInput.value = blockData.title;
+      quillEditBlock.root.innerHTML = blockData.content || '';
+      renderAttachments(blockData.id);
+      editBlockModal.showModal();
+    }
+
+    async function handleSaveEdit() {
+      const blockId = editModalBlockId.value;
+      const newTitle = editModalTitleInput.value.trim() || 'Sem título';
+      const newContent = quillEditBlock.root.innerHTML.trim();
+      await updateBlock(blockId, { title: newTitle, content: newContent });
+      // process any files added via edit modal input (they upload directly when selected)
+      editBlockModal.close();
+      render();
+    }
+
+    // --- File preview before upload (creation modal) ---
+    function handleFileSelection(files, container) {
+      container.innerHTML = '';
+      filesToUpload = Array.from(files);
+      filesToUpload.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'attach-item';
+        if (file.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(file);
+          item.appendChild(img);
+        } else {
+          const fileName = document.createElement('div');
+          fileName.textContent = file.name;
+          item.appendChild(fileName);
+        }
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn danger';
+        removeBtn.textContent = 'Remover';
+        removeBtn.onclick = () => {
+          filesToUpload = filesToUpload.filter(f => f !== file);
+          item.remove();
+        };
+        actions.appendChild(removeBtn);
+        item.appendChild(actions);
+        container.appendChild(item);
+      });
+    }
+
+    // --- Events ---
+    document.getElementById('addPageBtn').onclick = () => {
+      const v = document.getElementById('newPageInput').value.trim();
+      if (!v) return alert('Digite um nome para a página');
+      createPage(v || 'Nova página');
+      document.getElementById('newPageInput').value = '';
+    };
+    document.getElementById('deletePageBtn').onclick = () => { if (activePageId) deletePage(activePageId); };
+    document.getElementById('addTextBtn').onclick = openNewBlockModal;
+    document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
+    document.getElementById('saveModalBtn').onclick = handleNewBlock;
+    modalFilesInput.addEventListener('change', (e) => handleFileSelection(e.target.files, modalFileListDiv));
+
+    document.getElementById('closeEditModalBtn').onclick = () => editBlockModal.close();
+    document.getElementById('saveEditModalBtn').onclick = handleSaveEdit;
+    document.getElementById('deleteBtn').onclick = async () => {
+      const blockId = editModalBlockId.value;
+      if (!blockId) return;
+      await deleteBlock(blockId);
+      editBlockModal.close();
+    };
+
+    // when selecting files in edit modal, upload immediately and refresh attachments
+    editModalFilesInput.addEventListener('change', async (e) => {
+      const files = e.target.files;
+      const blockId = editModalBlockId.value;
+      if (!blockId) return alert('Abra um bloco para adicionar arquivos.');
+      if (files.length > 0) {
+        await addFileAttachments(files, blockId);
+        await renderAttachments(blockId);
+        e.target.value = '';
+      }
+    });
+
+    // logout: signOut
+    document.getElementById('logoutBtn').onclick = async () => {
+      await supabase.auth.signOut();
+    };
+
+    // search
+    searchBar.addEventListener('input', (e) => {
+      renderBlocks(e.target.value);
+    });
+
+    // --- Auth state handling ---
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        window.location.href = 'auth.html';
+      } else if (session) {
+        currentUser = session.user;
+        await loadPages();
+      }
+    });
+
+    // initial session check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        currentUser = session.user;
+        loadPages();
+      } else {
+        // not logged in — you may redirect to login page or show limited view
+        // window.location.href = 'auth.html';
+      }
+    });
   </script>
 </body>
 </html>
