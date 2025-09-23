@@ -70,17 +70,6 @@
       margin: 0;
     }
 
-    .block textarea {
-      width:100%;
-      height:120px;
-      background:transparent;
-      border:1px solid #ddd;
-      border-radius:8px;
-      padding:6px;
-      resize:vertical;
-      outline:none
-    }
-
     .title-input {
       font-weight:bold;
       border:1px solid #ccc;
@@ -121,19 +110,13 @@
       flex-direction: column;
       gap: 16px;
     }
-    .modal-content input, .modal-content textarea, .modal-content .btn {
+    .modal-content input, .modal-content .btn {
       width: 100%;
     }
     .modal-buttons {
       display: flex;
       justify-content: flex-end;
       gap: 8px;
-    }
-
-    /* Define um tamanho fixo para o campo de texto do modal */
-    #editBlockModal textarea, #newBlockModal textarea {
-      height: 120px;
-      resize: none;
     }
 
     /* Novo estilo de grade para os anexos */
@@ -169,6 +152,9 @@
         gap: 8px;
     }
   </style>
+
+  <!-- Quill Styles -->
+  <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet" />
 </head>
 <body>
   <div class="app">
@@ -202,12 +188,7 @@
     <div class="modal-content">
       <h2>Novo Bloco de Texto</h2>
       <input type="text" id="modalTitle" placeholder="Novo tópico" class="title-input" />
-      
-      <div id="textBlocksContainer">
-        <textarea placeholder="Adicionar texto aqui"></textarea>
-      </div>
-      
-      <button id="addTextFieldBtn" class="btn">Adicionar outro bloco de texto</button>
+      <div id="modalEditor"></div>
       
       <div class="file-upload">
         <label class="btn">
@@ -229,7 +210,7 @@
       <input type="hidden" id="editModalBlockId" />
       <h2>Detalhes do Bloco</h2>
       <input type="text" id="editModalTitleInput" class="title-input" />
-      <textarea id="editModalContentTextarea" class="title-input"></textarea>
+      <div id="editModalEditor"></div>
 
       <div class="file-upload">
         <label class="btn">
@@ -247,6 +228,8 @@
     </div>
   </dialog>
 
+  <!-- Quill Script -->
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -265,35 +248,58 @@
     const modalTitleInput = document.getElementById('modalTitle');
     const modalFilesInput = document.getElementById('modalFiles');
     const modalFileListDiv = document.getElementById('modalFileList');
-    const textBlocksContainer = document.getElementById('textBlocksContainer');
-    const addTextFieldBtn = document.getElementById('addTextFieldBtn');
 
-    // Novos elementos do Modal de Edição
+    // Elementos do Modal de Edição
     const editBlockModal = document.getElementById('editBlockModal');
     const editModalBlockId = document.getElementById('editModalBlockId');
     const editModalTitleInput = document.getElementById('editModalTitleInput');
-    const editModalContentTextarea = document.getElementById('editModalContentTextarea');
     const editModalFileList = document.getElementById('editModalFileList');
     const editModalFilesInput = document.getElementById('editModalFilesInput');
     
-    // Adicionamos a barra de pesquisa
+    // Barra de pesquisa
     const searchBar = document.getElementById('searchBar');
+
+    // Quill editors
+    let quillNewBlock, quillEditBlock;
+
+    window.addEventListener("DOMContentLoaded", () => {
+      quillNewBlock = new Quill('#modalEditor', {
+        theme: 'snow',
+        placeholder: 'Adicionar texto aqui...',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            ['link', 'image']
+          ]
+        }
+      });
+
+      quillEditBlock = new Quill('#editModalEditor', {
+        theme: 'snow',
+        placeholder: 'Editar conteúdo...',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            ['link', 'image']
+          ]
+        }
+      });
+    });
 
     let pages = [];
     let activePageId = null;
     let currentUser = null;
-    let currentBlocks = []; // Variável para armazenar todos os blocos da página atual
-    let filesToUpload = []; // Array para armazenar os arquivos antes de salvar
+    let currentBlocks = [];
+    let filesToUpload = [];
 
     // --- Páginas ---
     async function loadPages(){
       if (!currentUser) return;
-      
       const { data, error } = await supabase.from('pages').select('*').order('created_at', { ascending:false });
       if(error) console.error(error);
       pages = data || [];
-      
-      // Carrega o ID da página ativa do LocalStorage
       const savedPageId = localStorage.getItem('activePageId');
       if (savedPageId && pages.some(p => p.id === savedPageId)) {
         activePageId = savedPageId;
@@ -302,7 +308,6 @@
       } else {
         activePageId = null;
       }
-      
       renderPages();
       render();
     }
@@ -316,7 +321,7 @@
       if(error) return alert(error.message);
       pages.unshift(data);
       activePageId = data.id;
-      localStorage.setItem('activePageId', activePageId); // Salva o novo ID
+      localStorage.setItem('activePageId', activePageId);
       renderPages();
       render();
     }
@@ -344,7 +349,7 @@
         div.textContent = p.title;
         div.onclick = ()=>{ 
           activePageId=p.id; 
-          localStorage.setItem('activePageId', activePageId); // Salva o ID ao clicar
+          localStorage.setItem('activePageId', activePageId);
           render(); 
         };
         pagesEl.appendChild(div);
@@ -356,52 +361,30 @@
       if(!activePageId) return [];
       const { data, error } = await supabase.from('blocks').select('*').eq('page_id', activePageId).order('created_at');
       if(error) console.error(error);
-      currentBlocks = data || []; // Armazena os blocos na variável global
+      currentBlocks = data || [];
       return currentBlocks;
     }
     
-    // Função para lidar com a criação de um novo bloco via modal
     async function handleNewBlock() {
       if (!currentUser || !activePageId) {
         alert('Você precisa estar logado e ter uma página selecionada para adicionar um bloco.');
         return;
       }
-      
       const title = modalTitleInput.value.trim() || "Novo tópico";
-      
-      // Pega todos os textareas criados dinamicamente
-      const textareas = textBlocksContainer.querySelectorAll('textarea');
-      
-      // Salva cada bloco de texto separadamente
-      for (const textarea of textareas) {
-          const content = textarea.value.trim();
-          if (content) {
-            const { error } = await supabase.from('blocks').insert({
-              page_id: activePageId,
-              title: title,
-              content: content,
-              user_id: currentUser.id
-            });
-            if (error) {
-              return alert('Erro ao salvar bloco: ' + error.message);
-            }
-          }
-      }
-      
-      // Em seguida, adiciona os anexos se existirem
+      const content = quillNewBlock.root.innerHTML.trim();
+      const { data, error } = await supabase.from('blocks').insert({
+        page_id: activePageId,
+        title: title,
+        content: content,
+        user_id: currentUser.id
+      }).select().single();
+      if (error) return alert(error.message);
       if (filesToUpload.length > 0) {
-        // Encontra o ID do último bloco criado para associar os arquivos
-        const { data: lastBlock } = await supabase.from('blocks')
-          .select('id').eq('page_id', activePageId).order('created_at', { ascending: false }).limit(1).single();
-        if (lastBlock) {
-          await addFileAttachments(filesToUpload, lastBlock.id);
-        }
+        await addFileAttachments(filesToUpload, data.id);
       }
-      
-      // Chama a função que fecha o modal e limpa os campos
+      currentBlocks.push(data);
       closeNewBlockModal();
-      
-      renderBlocks(); // Recarrega os blocos
+      renderBlocks();
     }
 
     async function updateBlock(id, fields){
@@ -421,7 +404,6 @@
         const path = `${activePageId}/${blockId}/${Date.now()}_${file.name}`;
         let { error: upError } = await supabase.storage.from('uploads').upload(path, file);
         if(upError) { alert(upError.message); continue; }
-        
         const { error: attachError } = await supabase.from('attachments').insert({
           page_id: activePageId,
           block_id: blockId,
@@ -431,14 +413,12 @@
           storage_path: path,
           user_id: currentUser.id
         });
-        
         if (attachError) {
           alert('Erro ao inserir anexo: ' + attachError.message);
         }
       }
     }
 
-    // Nova função para renderizar os anexos no modal de edição
     async function renderAttachments(blockId) {
         editModalFileList.innerHTML = '';
         const { data, error } = await supabase.from('attachments').select('*').eq('block_id', blockId);
@@ -446,12 +426,9 @@
             console.error('Erro ao carregar anexos:', error);
             return;
         }
-        
         data.forEach(attachment => {
             const item = document.createElement('div');
             item.className = 'attach-item';
-            
-            // Verifica se o anexo é uma imagem para exibir a visualização
             if (attachment.type.startsWith('image/')) {
                 const { data: { publicUrl } } = supabase.storage.from('uploads').getPublicUrl(attachment.storage_path);
                 const img = document.createElement('img');
@@ -462,32 +439,26 @@
                 fileName.textContent = attachment.name;
                 item.appendChild(fileName);
             }
-
             const actions = document.createElement('div');
             actions.className = 'actions';
-
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'btn download-btn';
             downloadBtn.textContent = 'Download';
             downloadBtn.onclick = () => downloadAttachment(attachment.storage_path, attachment.name);
             actions.appendChild(downloadBtn);
-
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'btn danger delete-attach-btn';
             deleteBtn.textContent = 'Excluir';
             deleteBtn.onclick = () => deleteAttachment(attachment.id, attachment.storage_path);
             actions.appendChild(deleteBtn);
-
-            item.appendChild(actions);
+						item.appendChild(actions);
             editModalFileList.appendChild(item);
         });
     }
 
-    // Função de download do anexo
     async function downloadAttachment(path, fileName) {
       const { data, error } = await supabase.storage.from('uploads').download(path);
       if (error) return alert('Erro ao baixar arquivo: ' + error.message);
-
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url;
@@ -498,28 +469,22 @@
       URL.revokeObjectURL(url);
     }
 
-    // Função para excluir anexo
     async function deleteAttachment(id, path) {
         if (!confirm("Tem certeza que deseja excluir este anexo?")) return;
-        
         const { error: dbError } = await supabase.from('attachments').delete().eq('id', id);
         if (dbError) return alert('Erro ao excluir anexo: ' + dbError.message);
-        
         const { error: storageError } = await supabase.storage.from('uploads').remove([path]);
         if (storageError) return alert('Erro ao excluir arquivo do storage: ' + storageError.message);
-        
         alert("Anexo excluído com sucesso!");
         renderAttachments(editModalBlockId.value);
     }
 
-    // Nova função para visualizar arquivos ANTES de salvar (no modal de criação)
     function handleFileSelection(files, container) {
       container.innerHTML = '';
       filesToUpload = Array.from(files);
       filesToUpload.forEach(file => {
           const item = document.createElement('div');
           item.className = 'attach-item';
-          
           if (file.type.startsWith('image/')) {
               const img = document.createElement('img');
               img.src = URL.createObjectURL(file);
@@ -529,11 +494,8 @@
               fileName.textContent = file.name;
               item.appendChild(fileName);
           }
-
           const actions = document.createElement('div');
           actions.className = 'actions';
-
-          // Botão para remover do "pré-upload"
           const removeBtn = document.createElement('button');
           removeBtn.className = 'btn danger delete-attach-btn';
           removeBtn.textContent = 'Remover';
@@ -542,93 +504,72 @@
               item.remove();
           };
           actions.appendChild(removeBtn);
-
           item.appendChild(actions);
           container.appendChild(item);
       });
     }
 
-
-    // --- Render Blocos com anexos (Função atualizada com pesquisa) ---
     function renderBlocks(searchTerm = ''){
       blocksContainer.innerHTML = '';
       const blocksToRender = currentBlocks.filter(block => {
-        // Transforma o termo de busca e os textos do bloco em minúsculas para uma comparação sem distinção de maiúsculas/minúsculas
         const lowerCaseSearch = searchTerm.toLowerCase();
-        const titleMatch = block.title.toLowerCase().includes(lowerCaseSearch);
-        const contentMatch = block.content.toLowerCase().includes(lowerCaseSearch);
-        return titleMatch || contentMatch;
+        return block.title.toLowerCase().includes(lowerCaseSearch) ||
+               block.content.toLowerCase().includes(lowerCaseSearch);
       });
-
       blocksToRender.forEach(b => {
         const card = document.createElement('div');
         card.className = 'block';
-
-        // Não mais editável diretamente. Clique no bloco para abrir o modal.
         card.innerHTML = `
           <h3>${b.title}</h3>
-          <p>${b.content}</p>
+          <div>${b.content}</div>
         `;
-        
-        // Adiciona o evento de clique para abrir o modal de edição
-        card.onclick = () => {
-          openEditModal(b);
-        };
-        
+        card.onclick = () => { openEditModal(b); };
         blocksContainer.appendChild(card);
       });
     }
-    
-    // --- Render principal (Função atualizada para a pesquisa) ---
+
     async function render(){
       const p = pages.find(x=>x.id===activePageId);
       if(!p){ pageTitle.textContent = 'Nenhuma página'; return; }
       pageTitle.textContent = p.title;
-      await loadBlocks(); // Garante que os blocos estão carregados antes de renderizar
-      renderBlocks(searchBar.value); // Chama a renderização com o valor atual da barra de pesquisa
+      await loadBlocks();
+      renderBlocks(searchBar.value);
     }
     
-    // --- Funções do Modal de Criação ---
     function openNewBlockModal() {
       newBlockModal.showModal();
     }
     function closeNewBlockModal() {
       newBlockModal.close();
-      // Limpar os campos do modal
       modalTitleInput.value = '';
+      quillNewBlock.root.innerHTML = '';
       modalFilesInput.value = null;
       modalFileListDiv.innerHTML = '';
       filesToUpload = [];
-      
-      // Limpa todos os textareas do container dinâmico
-      textBlocksContainer.innerHTML = '<textarea placeholder="Adicionar texto aqui"></textarea>';
     }
     
-    // --- Funções do Modal de Edição ---
     function openEditModal(blockData) {
       editModalBlockId.value = blockData.id;
       editModalTitleInput.value = blockData.title;
-      editModalContentTextarea.value = blockData.content;
-      renderAttachments(blockData.id); // Carrega e exibe os anexos do bloco
+      quillEditBlock.root.innerHTML = blockData.content || '';
+      renderAttachments(blockData.id);
       editBlockModal.showModal();
     }
 
     async function handleSaveEdit() {
       const blockId = editModalBlockId.value;
       const newTitle = editModalTitleInput.value;
-      const newContent = editModalContentTextarea.value;
+      const newContent = quillEditBlock.root.innerHTML.trim();
       const newFiles = editModalFilesInput.files;
-
       await updateBlock(blockId, { title: newTitle, content: newContent });
       if (newFiles.length > 0) {
         await addFileAttachments(newFiles, blockId);
       }
-
       editBlockModal.close();
       render();
     }
-    
-    // Eventos
+
+    // --- Eventos ---
     document.getElementById('addPageBtn').onclick = ()=>{
       const v = document.getElementById('newPageInput').value.trim();
       createPage(v||'Nova página');
@@ -636,47 +577,31 @@
     };
     document.getElementById('deletePageBtn').onclick = ()=>{ if(activePageId) deletePage(activePageId); };
     
-    // Eventos do Modal de Criação
     document.getElementById('addTextBtn').onclick = openNewBlockModal;
     document.getElementById('closeModalBtn').onclick = closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick = handleNewBlock;
     modalFilesInput.addEventListener('change', (e) => handleFileSelection(e.target.files, modalFileListDiv));
-    
-    // Lógica para o novo botão "Adicionar outro bloco de texto"
-    addTextFieldBtn.onclick = () => {
-        const textarea = document.createElement('textarea');
-        textarea.placeholder = 'Adicionar outro texto aqui';
-        textBlocksContainer.appendChild(textarea);
-    };
 
-    // Eventos do Modal de Edição
-    document.getElementById('closeEditModalBtn').onclick = () => {
-      editBlockModal.close();
-    };
+    document.getElementById('closeEditModalBtn').onclick = () => { editBlockModal.close(); };
     document.getElementById('saveEditModalBtn').onclick = handleSaveEdit;
     document.getElementById('deleteBtn').onclick = async () => {
       const blockId = editModalBlockId.value;
       await deleteBlock(blockId);
       editBlockModal.close();
     };
-    
-    // Evento para lidar com a seleção de arquivos no modal de edição
+
     editModalFilesInput.addEventListener('change', async (e) => {
         const files = e.target.files;
         const blockId = editModalBlockId.value;
         if (files.length > 0) {
             await addFileAttachments(files, blockId);
             renderAttachments(blockId);
-            e.target.value = ''; // Limpa o input file para permitir novos uploads do mesmo arquivo
+            e.target.value = '';
         }
     });
 
-    // Altere este bloco de código para remover o redirecionamento direto
-    document.getElementById('logoutBtn').onclick = async () => {
-      await supabase.auth.signOut();
-    };
+    document.getElementById('logoutBtn').onclick = async () => { await supabase.auth.signOut(); };
 
-    // Mantenha este bloco de código. Ele é o responsável por redirecionar após o evento SIGNED_OUT
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         window.location.href = 'auth.html';
@@ -686,12 +611,8 @@
       }
     });
 
-    // Adiciona o evento de escuta para a barra de pesquisa
-    searchBar.addEventListener('input', (e) => {
-      renderBlocks(e.target.value);
-    });
+    searchBar.addEventListener('input', (e) => { renderBlocks(e.target.value); });
 
-    // Início - Verificação inicial da sessão ao carregar a página
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         currentUser = session.user;
@@ -701,3 +622,5 @@
   </script>
 </body>
 </html>
+
+           
