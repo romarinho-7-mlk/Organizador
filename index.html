@@ -83,7 +83,6 @@
     .attach-item .actions { display: flex; gap: 8px; }
   </style>
 
-  <!-- Quill Styles -->
   <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet" />
 </head>
 <body>
@@ -113,7 +112,6 @@
     </main>
   </div>
 
-  <!-- Modal Novo Bloco -->
   <dialog id="newBlockModal">
     <div class="modal-content">
       <h2>Novo Bloco de Texto</h2>
@@ -132,7 +130,6 @@
     </div>
   </dialog>
 
-  <!-- Modal Editar Bloco -->
   <dialog id="editBlockModal">
     <div class="modal-content">
       <input type="hidden" id="editModalBlockId" />
@@ -153,12 +150,14 @@
     </div>
   </dialog>
 
-  <!-- Quill + Plugins -->
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js"></script>
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    import ImageResize from 'https://cdn.jsdelivr.net/npm/quill-image-resize-module@3.0.0/image-resize.min.js';
+
+    // Registra o módulo de redimensionamento
+    Quill.register('modules/imageResize', ImageResize);
 
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
@@ -171,7 +170,7 @@
         placeholder: 'Adicionar texto aqui...',
         modules: {
           toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
-          imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
+          imageResize: {} // Apenas um objeto vazio é necessário aqui
         }
       });
       quillEditBlock = new Quill('#editModalEditor', {
@@ -179,7 +178,7 @@
         placeholder: 'Editar conteúdo...',
         modules: {
           toolbar: [['bold','italic','underline'],[{list:'ordered'},{list:'bullet'}],['link','image']],
-          imageResize: { modules: ['Resize','DisplaySize','Toolbar'] }
+          imageResize: {} // E aqui também
         }
       });
     });
