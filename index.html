@@ -7,7 +7,9 @@
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
   <style>
+    /* ... Seu CSS completo (sem alterações) ... */
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:linear-gradient(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
@@ -111,7 +113,6 @@
           <input type="text" id="searchBar" class="btn" placeholder="Pesquisar..." />
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
-            
             <button id="generatePdfBtn" class="btn">Gerar PDF</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
             <button id="logoutBtn" class="btn danger">Sair</button>
@@ -153,6 +154,8 @@
       </div>
       <div id="editModalFileList"></div>
       <div class="modal-buttons">
+        
+        <button id="generateBlockPdfBtn" class="btn">Gerar PDF do Bloco</button>
         <button id="closeEditModalBtn" class="btn">Fechar</button>
         <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
         <button id="deleteBtn" class="btn danger">Excluir Bloco</button>
@@ -327,11 +330,14 @@
     }
 
     // --- Funções PDF (ADICIONADAS) ---
+    // Função para gerar PDF de todos os blocos (mantida)
     async function generatePDF() {
       if (!activePageId) {
         alert('Selecione uma página para gerar o PDF.');
         return;
       }
+      
+      // ... Lógica para gerar PDF de todos os blocos (mantida) ...
 
       const container = document.getElementById('blocksContainer');
       const pageName = document.getElementById('pageTitle').textContent.trim() || 'Documento';
@@ -342,8 +348,7 @@
       document.body.appendChild(spinner);
 
       try {
-        // Oculta os botões de edição para que não apareçam no PDF
-        const editButtons = container.querySelectorAll('.block .btn'); // Seleciona os botões dentro dos blocos
+        const editButtons = container.querySelectorAll('.block .btn'); 
         editButtons.forEach(btn => btn.style.display = 'none');
 
         const { jsPDF } = window.jspdf;
@@ -352,17 +357,15 @@
         const pdfMargin = 10;
         const targetWidth = pdfWidth - 2 * pdfMargin; 
         
-        // Use html2canvas para renderizar o container dos blocos
         const canvas = await html2canvas(container, {
-          scale: 2, // Aumenta a escala para melhor qualidade de imagem no PDF
+          scale: 2, 
           useCORS: true,
           logging: false
         });
 
-        // Adiciona um cabeçalho simples com o nome da página
         doc.setFontSize(16);
         doc.text(`Relatório: ${pageName}`, pdfMargin, pdfMargin);
-        let yOffset = pdfMargin + 10; // Espaço após o título
+        let yOffset = pdfMargin + 10; 
         
         const imgData = canvas.toDataURL('image/png');
         const imgHeight = canvas.height * targetWidth / canvas.width;
@@ -372,32 +375,28 @@
         let pageNumber = 1;
 
         while (heightLeft > 0) {
-            let sHeight = pageHeight - yOffset - pdfMargin; // Altura restante na página
-            let sourceY = imgHeight - heightLeft; // Posição Y no canvas original
+            let sHeight = pageHeight - yOffset - pdfMargin; 
+            let sourceY = imgHeight - heightLeft; 
 
             if (pageNumber > 1) {
                 doc.addPage();
-                yOffset = pdfMargin; // Reseta o offset no início da nova página
+                yOffset = pdfMargin; 
                 sHeight = pageHeight - yOffset - pdfMargin;
             }
 
-            // Cria um canvas temporário para o corte
             let canvasCrop = document.createElement('canvas');
             let ctx = canvasCrop.getContext('2d');
             canvasCrop.width = canvas.width;
             
-            // Calcula a altura do corte em pixels do canvas original
             let cropHeightPx = canvas.height * sHeight / imgHeight; 
             
-            // Ajusta se o que resta para imprimir for menor que a altura calculada
             if (cropHeightPx > canvas.height - sourceY) {
                 cropHeightPx = canvas.height - sourceY;
-                sHeight = imgHeight * cropHeightPx / canvas.height; // Recalcula a altura em mm
+                sHeight = imgHeight * cropHeightPx / canvas.height;
             }
             
             canvasCrop.height = cropHeightPx;
             
-            // Desenha a seção a ser impressa no canvas de corte
             ctx.drawImage(canvas, 
                 0, sourceY, 
                 canvas.width, cropHeightPx, 
@@ -407,7 +406,6 @@
             
             let croppedImgData = canvasCrop.toDataURL('image/png');
 
-            // Adiciona a imagem cortada ao PDF
             doc.addImage(
                 croppedImgData, 
                 'PNG', 
@@ -426,12 +424,110 @@
 
       } catch (error) {
         console.error('Erro ao gerar PDF:', error);
-        alert('Ocorreu um erro ao gerar o PDF. Verifique se o conteúdo possui imagens ou estilos muito complexos.');
+        alert('Ocorreu um erro ao gerar o PDF de todos os blocos.');
       } finally {
-        // Restaura a visibilidade dos botões de edição
         const editButtons = container.querySelectorAll('.block .btn');
         editButtons.forEach(btn => btn.style.display = '');
         spinner.remove();
+      }
+    }
+
+    // === 2. ADIÇÃO: Nova função para gerar PDF de um Bloco específico ===
+    async function generateBlockPDF() {
+      const title = editModalTitleInput.value.trim() || 'Novo tópico';
+      const content = $('#editModalEditor').summernote('code');
+      
+      const spinner = document.createElement('div');
+      spinner.textContent = 'Gerando PDF...';
+      spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
+      document.body.appendChild(spinner);
+      
+      try {
+          const tempDiv = document.createElement('div');
+          tempDiv.style.padding = '20px'; // Adiciona um padding para margem visual
+          tempDiv.innerHTML = `
+              <h1 style="margin-bottom: 20px;">${title}</h1>
+              <div style="font-size: 14px;">${content}</div>
+          `;
+          
+          // Adiciona a div temporária ao corpo para que o html2canvas possa vê-la
+          document.body.appendChild(tempDiv);
+
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF('p', 'mm', 'a4');
+          const pdfWidth = doc.internal.pageSize.getWidth();
+          const pdfMargin = 10;
+          const targetWidth = pdfWidth - 2 * pdfMargin;
+          
+          // Gera o Canvas a partir da div temporária
+          const canvas = await html2canvas(tempDiv, {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+          });
+
+          // Lógica de múltiplas páginas para o conteúdo do bloco
+          const imgData = canvas.toDataURL('image/png');
+          const imgHeight = canvas.height * targetWidth / canvas.width;
+          const pageHeight = doc.internal.pageSize.getHeight();
+          let heightLeft = imgHeight;
+          let yOffset = pdfMargin;
+          let pageNumber = 1;
+
+          while (heightLeft > 0) {
+              let sHeight = pageHeight - yOffset - pdfMargin;
+              let sourceY = imgHeight - heightLeft;
+
+              if (pageNumber > 1) {
+                  doc.addPage();
+                  yOffset = pdfMargin;
+                  sHeight = pageHeight - yOffset - pdfMargin;
+              }
+
+              let canvasCrop = document.createElement('canvas');
+              let ctx = canvasCrop.getContext('2d');
+              canvasCrop.width = canvas.width;
+              
+              let cropHeightPx = canvas.height * sHeight / imgHeight;
+
+              if (cropHeightPx > canvas.height - sourceY) {
+                  cropHeightPx = canvas.height - sourceY;
+                  sHeight = imgHeight * cropHeightPx / canvas.height;
+              }
+
+              canvasCrop.height = cropHeightPx;
+
+              ctx.drawImage(canvas,
+                  0, sourceY,
+                  canvas.width, cropHeightPx,
+                  0, 0,
+                  canvas.width, cropHeightPx
+              );
+
+              let croppedImgData = canvasCrop.toDataURL('image/png');
+
+              doc.addImage(
+                  croppedImgData,
+                  'PNG',
+                  pdfMargin,
+                  yOffset,
+                  targetWidth,
+                  sHeight
+              );
+
+              heightLeft -= sHeight;
+              yOffset += sHeight;
+              pageNumber++;
+          }
+
+          doc.save(`${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+      } catch (error) {
+          console.error('Erro ao gerar PDF do Bloco:', error);
+          alert('Ocorreu um erro ao gerar o PDF do Bloco.');
+      } finally {
+          // Remove a div temporária
+          document.body.removeChild(tempDiv);
+          spinner.remove();
       }
     }
 
@@ -440,9 +536,12 @@
     document.getElementById('addPageBtn').onclick=()=>{createPage(document.getElementById('newPageInput').value.trim()||'Nova página');};
     document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
     document.getElementById('addTextBtn').onclick=openNewBlockModal;
-    // === 3. ADIÇÃO: Evento para o botão Gerar PDF ===
-    document.getElementById('generatePdfBtn').onclick = generatePDF;
-    // ===============================================
+    document.getElementById('generatePdfBtn').onclick = generatePDF; // PDF de todos os blocos
+    
+    // === 3. ADIÇÃO: Evento para o botão Gerar PDF do Bloco ===
+    document.getElementById('generateBlockPdfBtn').onclick = generateBlockPDF;
+    // ========================================================
+    
     document.getElementById('closeModalBtn').onclick=closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick=handleNewBlock;
     document.getElementById('closeEditModalBtn').onclick=closeEditModal;
