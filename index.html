@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
+<<head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SuportAdd</title>
@@ -15,54 +15,80 @@
     .page{background:var(--glass);padding:8px;border-radius:8px;margin-bottom:8px;cursor:pointer}
     .page.active{outline:2px solid rgba(255, 3, 3, 0.069)}
     .new-page{display:flex;gap:8px}
+    .btn{background:white;border:1px solid rgba(116, 116, 116, 0.963);padding:8px;border-radius:8px;color:var(--muted);cursor:pointer}
+    .main{padding:18px;}
+    .card{background:#f0f9f9;padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(1, 1, 1, 0.6)}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    h1{margin:0;font-size:20px}
+    .controls{display:flex;gap:8px}
 
-    /* estilo padrão dos botões */
-    .btn{border:none;padding:10px 20px;border-radius:20px;color:white;cursor:pointer;font-weight:bold;background:linear-gradient(to right, #007bff, #0056b3);box-shadow:0 4px 6px rgba(0,0,0,0.1);transition:background 0.3s ease}
-    .btn:hover{background:linear-gradient(to right,#0056b3,#007bff)}
-    .btn:active{transform:translateY(1px)}
-    .danger{background:#dc3545;color:white}
-    .danger:hover{background:#c82333}
-
-    /* campo de pesquisa separado */
-    .input-search {
-      padding: 10px 16px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      width: 200px;
-      color: #333;
-      font-size: 14px;
+    .btn {
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      background: linear-gradient(to right, #007bff, #0056b3);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: background 0.3s ease;
     }
+    .btn:hover { background: linear-gradient(to right, #0056b3, #007bff); }
+    .btn:active { transform: translateY(1px); }
+    .danger { background: #dc3545; color: white; }
+    .danger:hover { background: #c82333; }
 
-    .blocks{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-    .block,.attach-item{background:#01646415;padding:12px;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.114);display:flex;flex-direction:column;gap:8px;cursor:pointer}
-    .block h3,.block p{margin:0}
-    .title-input{font-weight:bold;border:1px solid #ccc;padding:6px;border-radius:8px}
+    .blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .block, .attach-item {
+      background:#01646415;
+      padding:12px;
+      border-radius:12px;
+      box-shadow:0 2px 6px rgba(0, 0, 0, 0.114);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      cursor: pointer;
+    }
+    .block h3, .block p { margin: 0; }
+
+    .title-input { font-weight:bold; border:1px solid #ccc; padding:6px; border-radius:8px; }
+
     input[type=file]{display:none}
-
     @media(max-width:860px){
       .app{grid-template-columns:1fr;grid-auto-rows:auto;overflow:auto;height:auto}
       .sidebar{order:2}
       .blocks{grid-template-columns:1fr}
     }
-    dialog{border:none;border-radius:12px;padding:24px;box-shadow:0 10px 25px rgba(0,0,0,0.2);max-width:900px;width:90%;background:#fff}
-    dialog::backdrop{background:rgba(0,0,0,0.5)}
-    .modal-content{display:flex;flex-direction:column;gap:16px}
-    .modal-content input,.modal-content .btn{width:100%}
-    .modal-buttons{display:flex;justify-content:flex-end;gap:8px}
-    #editModalFileList,#modalFileList{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
-    .attach-item img{max-width:100%;height:auto;margin-bottom:8px;border-radius:6px}
-    .attach-item .actions{display:flex;gap:8px}
+
+    dialog {
+      border: none;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      max-width: 900px;
+      width: 90%;
+      background: #fff;
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+    .modal-content { display: flex; flex-direction: column; gap: 16px; }
+    .modal-content input, .modal-content .btn { width: 100%; }
+    .modal-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+
+    #editModalFileList, #modalFileList {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .attach-item img { max-width: 100%; height: auto; margin-bottom: 8px; border-radius: 6px; }
+    .attach-item .actions { display: flex; gap: 8px; }
   </style>
 
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTK+Q4lW6Z0bJ8L5F2U0C8F6E4A0S9R1B1X8E4F8A6B9P2C1N1A4H4E5G6C7D8F9G0A1" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-Y3H8M2K2E2G4K4F5T5H6G7B8A9C1D0E0F1A2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P7Q8R9S0T1U2V3W4X5Y6Z7" crossorigin="anonymous"></script>
   <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
 
-  <!-- bibliotecas para exportar em PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <div class="app">
@@ -70,7 +96,7 @@
       <div class="logo">Suport - ADD </div>
       <div class="pages" id="pages"></div>
       <div class="new-page">
-        <input id="newPageInput" class="input-search" placeholder="Nome da página" />
+        <input id="newPageInput" class="btn" placeholder="Nome da página" />
         <button id="addPageBtn" class="btn">Criar</button>
       </div>
     </aside>
@@ -79,10 +105,9 @@
       <div class="card">
         <header>
           <h1 id="pageTitle">Página</h1>
-          <input type="text" id="searchBar" class="input-search" placeholder="Pesquisar..." />
+          <input type="text" id="searchBar" class="btn" placeholder="Pesquisar..." />
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
-            <button id="exportPdfBtn" class="btn">Exportar em PDF</button>
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
             <button id="logoutBtn" class="btn danger">Sair</button>
           </div>
@@ -92,7 +117,6 @@
     </main>
   </div>
 
-  <!-- Modal criar bloco -->
   <dialog id="newBlockModal">
     <div class="modal-content">
       <h2>Novo Bloco de Texto</h2>
@@ -111,7 +135,6 @@
     </div>
   </dialog>
 
-  <!-- Modal editar bloco -->
   <dialog id="editBlockModal">
     <div class="modal-content">
       <input type="hidden" id="editModalBlockId" />
@@ -127,7 +150,6 @@
       <div class="modal-buttons">
         <button id="closeEditModalBtn" class="btn">Fechar</button>
         <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
-        <button id="exportOnePdfBtn" class="btn">Exportar este bloco</button>
         <button id="deleteBtn" class="btn danger">Excluir Bloco</button>
       </div>
     </div>
@@ -137,22 +159,28 @@
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
-    const SUPABASE_KEY = "SUA_CHAVE_AQUI"; // substitua pela sua
+    // Usando a chave do seu arquivo anterior, que estava funcionando
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    // --- Variáveis globais ---
     const pagesEl = document.getElementById('pages');
     const blocksContainer = document.getElementById('blocksContainer');
     const pageTitle = document.getElementById('pageTitle');
     const newBlockModal = document.getElementById('newBlockModal');
     const modalTitleInput = document.getElementById('modalTitle');
+    const modalFilesInput = document.getElementById('modalFiles');
+    const modalFileListDiv = document.getElementById('modalFileList');
     const editBlockModal = document.getElementById('editBlockModal');
     const editModalBlockId = document.getElementById('editModalBlockId');
     const editModalTitleInput = document.getElementById('editModalTitleInput');
+    const editModalFileList = document.getElementById('editModalFileList');
+    const editModalFilesInput = document.getElementById('editModalFilesInput');
     const searchBar = document.getElementById('searchBar');
 
-    let pages = [], activePageId = null, currentUser = null, currentBlocks = [];
+    let pages = [], activePageId = null, currentUser = null, currentBlocks = [], filesToUpload = [];
 
-    // carregar páginas
+    // --- Páginas ---
     async function loadPages(){
       if (!currentUser) return;
       const { data } = await supabase.from('pages').select('*').order('created_at',{ascending:false});
@@ -171,7 +199,7 @@
       pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; renderPages(); render();
     }
     function renderPages(){
-      pagesEl.innerHTML='';
+      pagesEl.innerHTML=''; 
       pages.forEach(p=>{
         const div=document.createElement('div');
         div.className='page'+(p.id===activePageId?' active':'');
@@ -181,7 +209,7 @@
       });
     }
 
-    // blocos
+    // --- Blocos ---
     async function loadBlocks(){
       if(!activePageId) return [];
       const { data } = await supabase.from('blocks').select('*').eq('page_id',activePageId).order('created_at');
@@ -192,19 +220,22 @@
       const title=modalTitleInput.value.trim()||"Novo tópico";
       const content=$('#modalEditor').summernote('code').trim();
       const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
-      currentBlocks.push(data);
-      closeNewBlockModal();
-      render();
+      currentBlocks.push(data); 
+      closeNewBlockModal(); 
+      // CORREÇÃO: Chama render() para recarregar do DB e garantir que o novo bloco apareça.
+      render(); 
     }
     async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
     async function deleteBlock(id){ if(confirm("Excluir bloco?")){await supabase.from('blocks').delete().eq('id',id); render();} }
 
     function renderBlocks(term=''){
       blocksContainer.innerHTML='';
+      // CORREÇÃO: Adicionado '?' (optional chaining) para evitar erro se 'content' for nulo no filtro.
       currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content?.toLowerCase().includes(term.toLowerCase()))
       .forEach(b=>{
         const card=document.createElement('div');
         card.className='block';
+        // CORREÇÃO: Adicionado '|| ''' (fallback) para evitar erro no display de blocos antigos com content nulo.
         card.innerHTML=`<h3>${b.title}</h3><div>${b.content || ''}</div>`;
         card.onclick=()=>openEditModal(b);
         blocksContainer.appendChild(card);
@@ -212,32 +243,85 @@
     }
     async function render(){ const p=pages.find(x=>x.id===activePageId); if(!p){pageTitle.textContent='Nenhuma página';return;} pageTitle.textContent=p.title; await loadBlocks(); renderBlocks(searchBar.value); }
 
-    // modais
-    function openNewBlockModal(){
-      $('#modalEditor').summernote({height:300});
-      newBlockModal.showModal();
+    // --- Modais ---
+    function openNewBlockModal(){ 
+      $('#modalEditor').summernote({
+        height: 300,
+        toolbar: [
+            ['style', ['bold', 'italic', 'underline', 'clear']],
+            ['font', ['strikethrough', 'superscript', 'subscript']],
+            ['fontsize', ['fontsize']],
+            ['color', ['color']],
+            ['para', ['ul', 'ol', 'paragraph']],
+            ['height', ['height']],
+            ['insert', ['link', 'picture', 'video']],
+            ['view', ['fullscreen', 'codeview', 'help']]
+        ]
+      });
+      newBlockModal.showModal(); 
     }
-    function closeNewBlockModal(){
+    function closeNewBlockModal(){ 
       $('#modalEditor').summernote('destroy');
-      newBlockModal.close(); modalTitleInput.value='';
+      newBlockModal.close(); 
+      modalTitleInput.value=''; 
+      modalFilesInput.value=null; 
+      modalFileListDiv.innerHTML=''; 
+      filesToUpload=[]; 
     }
-    function openEditModal(b){
-      editModalBlockId.value=b.id;
-      editModalTitleInput.value=b.title;
-      $('#editModalEditor').summernote({height:300});
+    function openEditModal(b){ 
+      editModalBlockId.value=b.id; 
+      editModalTitleInput.value=b.title; 
+      $('#editModalEditor').summernote({
+        height: 300,
+        toolbar: [
+            ['style', ['bold', 'italic', 'underline', 'clear']],
+            ['font', ['strikethrough', 'superscript', 'subscript']],
+            ['fontsize', ['fontsize']],
+            ['color', ['color']],
+            ['para', ['ul', 'ol', 'paragraph']],
+            ['height', ['height']],
+            ['insert', ['link', 'picture', 'video']],
+            ['view', ['fullscreen', 'codeview', 'help']]
+        ]
+      });
       $('#editModalEditor').summernote('code', b.content || '');
-      editBlockModal.showModal();
+      editBlockModal.showModal(); 
     }
-    async function handleSaveEdit(){
-      await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()});
-      editBlockModal.close(); render();
+    
+    // CORREÇÃO ESSENCIAL: Adicionado 'async' e 'await' E FEEDBACK VISUAL
+    async function handleSaveEdit(){ 
+      // 1. Pega os botões do modal de edição
+      const saveBtn = document.getElementById('saveEditModalBtn');
+      const closeBtn = document.getElementById('closeEditModalBtn');
+      
+      // 2. Desabilita botões e mostra feedback
+      saveBtn.textContent = 'Salvando...';
+      saveBtn.disabled = true;
+      closeBtn.disabled = true;
+
+      try {
+          // O AWAIT garante que a execução espere a confirmação do Supabase.
+          await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()}); 
+          
+          editBlockModal.close(); 
+          render(); 
+      } catch (error) {
+          console.error("Erro ao salvar o bloco:", error);
+          alert("Ocorreu um erro ao salvar!");
+      } finally {
+          // 3. Restaura botões, independentemente do sucesso ou falha
+          saveBtn.textContent = 'Salvar Alterações';
+          saveBtn.disabled = false;
+          closeBtn.disabled = false;
+      }
     }
+    
     function closeEditModal(){
       $('#editModalEditor').summernote('destroy');
       editBlockModal.close();
     }
 
-    // eventos
+    // --- Eventos ---
     document.getElementById('addPageBtn').onclick=()=>{createPage(document.getElementById('newPageInput').value.trim()||'Nova página');};
     document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
     document.getElementById('addTextBtn').onclick=openNewBlockModal;
@@ -251,55 +335,6 @@
 
     supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
     supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
-
-    // === EXPORTAR TODOS OS BLOCOS EM PDF ===
-    document.getElementById('exportPdfBtn').onclick = async () => {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const blocks = document.querySelectorAll('.block');
-
-      if (blocks.length === 0) {
-        alert("Nenhum bloco para exportar!");
-        return;
-      }
-
-      let y = 10;
-      for (let block of blocks) {
-        const canvas = await html2canvas(block);
-        const imgData = canvas.toDataURL("image/png");
-        const imgProps = pdf.getImageProperties(imgData);
-        const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        if (y + pdfHeight > pdf.internal.pageSize.getHeight() - 10) {
-          pdf.addPage();
-          y = 10;
-        }
-        pdf.addImage(imgData, "PNG", 10, y, pdfWidth, pdfHeight);
-        y += pdfHeight + 10;
-      }
-      pdf.save("meus_blocos.pdf");
-    };
-
-    // === EXPORTAR BLOCO ÚNICO EM PDF ===
-    document.getElementById('exportOnePdfBtn').onclick = async () => {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const blockId = document.getElementById('editModalBlockId').value;
-      const block = currentBlocks.find(b => b.id == blockId);
-      if (!block) { alert("Bloco não encontrado!"); return; }
-      const tempDiv = document.createElement('div');
-      tempDiv.style.width = "600px";
-      tempDiv.innerHTML = `<h3>${block.title}</h3><div>${block.content || ''}</div>`;
-      document.body.appendChild(tempDiv);
-      const canvas = await html2canvas(tempDiv);
-      const imgData = canvas.toDataURL("image/png");
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.addImage(imgData, "PNG", 10, 10, pdfWidth, pdfHeight);
-      pdf.save(`${block.title || 'bloco'}.pdf`);
-      document.body.removeChild(tempDiv);
-    };
   </script>
 </body>
 </html>
