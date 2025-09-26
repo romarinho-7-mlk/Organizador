@@ -15,16 +15,30 @@
     .page{background:var(--glass);padding:8px;border-radius:8px;margin-bottom:8px;cursor:pointer}
     .page.active{outline:2px solid rgba(255, 3, 3, 0.069)}
     .new-page{display:flex;gap:8px}
+
+    /* estilo padrão dos botões */
     .btn{border:none;padding:10px 20px;border-radius:20px;color:white;cursor:pointer;font-weight:bold;background:linear-gradient(to right, #007bff, #0056b3);box-shadow:0 4px 6px rgba(0,0,0,0.1);transition:background 0.3s ease}
     .btn:hover{background:linear-gradient(to right,#0056b3,#007bff)}
     .btn:active{transform:translateY(1px)}
     .danger{background:#dc3545;color:white}
     .danger:hover{background:#c82333}
+
+    /* campo de pesquisa separado */
+    .input-search {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      width: 200px;
+      color: #333;
+      font-size: 14px;
+    }
+
     .blocks{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
     .block,.attach-item{background:#01646415;padding:12px;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.114);display:flex;flex-direction:column;gap:8px;cursor:pointer}
     .block h3,.block p{margin:0}
     .title-input{font-weight:bold;border:1px solid #ccc;padding:6px;border-radius:8px}
     input[type=file]{display:none}
+
     @media(max-width:860px){
       .app{grid-template-columns:1fr;grid-auto-rows:auto;overflow:auto;height:auto}
       .sidebar{order:2}
@@ -56,7 +70,7 @@
       <div class="logo">Suport - ADD </div>
       <div class="pages" id="pages"></div>
       <div class="new-page">
-        <input id="newPageInput" class="btn" placeholder="Nome da página" />
+        <input id="newPageInput" class="input-search" placeholder="Nome da página" />
         <button id="addPageBtn" class="btn">Criar</button>
       </div>
     </aside>
@@ -65,7 +79,7 @@
       <div class="card">
         <header>
           <h1 id="pageTitle">Página</h1>
-          <input type="text" id="searchBar" class="btn" placeholder="Pesquisar..." />
+          <input type="text" id="searchBar" class="input-search" placeholder="Pesquisar..." />
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="exportPdfBtn" class="btn">Exportar em PDF</button>
@@ -78,17 +92,167 @@
     </main>
   </div>
 
-  <!-- seus modais continuam iguais ... -->
+  <!-- Modal criar bloco -->
+  <dialog id="newBlockModal">
+    <div class="modal-content">
+      <h2>Novo Bloco de Texto</h2>
+      <input type="text" id="modalTitle" placeholder="Novo tópico" class="title-input" />
+      <div id="modalEditor"></div>
+      <div class="file-upload">
+        <label class="btn">Adicionar arquivos
+          <input type="file" id="modalFiles" multiple />
+        </label>
+        <div id="modalFileList"></div>
+      </div>
+      <div class="modal-buttons">
+        <button id="closeModalBtn" class="btn">Cancelar</button>
+        <button id="saveModalBtn" class="btn">Salvar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal editar bloco -->
+  <dialog id="editBlockModal">
+    <div class="modal-content">
+      <input type="hidden" id="editModalBlockId" />
+      <h2>Detalhes do Bloco</h2>
+      <input type="text" id="editModalTitleInput" class="title-input" />
+      <div id="editModalEditor"></div>
+      <div class="file-upload">
+        <label class="btn">Adicionar arquivos
+          <input type="file" id="editModalFilesInput" multiple />
+        </label>
+      </div>
+      <div id="editModalFileList"></div>
+      <div class="modal-buttons">
+        <button id="closeEditModalBtn" class="btn">Fechar</button>
+        <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
+        <button id="exportOnePdfBtn" class="btn">Exportar este bloco</button>
+        <button id="deleteBtn" class="btn danger">Excluir Bloco</button>
+      </div>
+    </div>
+  </dialog>
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
-    const SUPABASE_KEY = "SUA_CHAVE_AQUI";
+    const SUPABASE_KEY = "SUA_CHAVE_AQUI"; // substitua pela sua
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // ... (todo o código existente que você já tem) ...
+    const pagesEl = document.getElementById('pages');
+    const blocksContainer = document.getElementById('blocksContainer');
+    const pageTitle = document.getElementById('pageTitle');
+    const newBlockModal = document.getElementById('newBlockModal');
+    const modalTitleInput = document.getElementById('modalTitle');
+    const editBlockModal = document.getElementById('editBlockModal');
+    const editModalBlockId = document.getElementById('editModalBlockId');
+    const editModalTitleInput = document.getElementById('editModalTitleInput');
+    const searchBar = document.getElementById('searchBar');
 
-    // === EXPORTAR EM PDF ===
+    let pages = [], activePageId = null, currentUser = null, currentBlocks = [];
+
+    // carregar páginas
+    async function loadPages(){
+      if (!currentUser) return;
+      const { data } = await supabase.from('pages').select('*').order('created_at',{ascending:false});
+      pages = data || [];
+      activePageId = pages[0]?.id || null;
+      renderPages(); render();
+    }
+    async function createPage(title){
+      if (!currentUser) return alert("Precisa logar");
+      const { data } = await supabase.from('pages').insert({ title, user_id: currentUser.id }).select().single();
+      pages.unshift(data); activePageId=data.id; renderPages(); render();
+    }
+    async function deletePage(id){
+      if(!confirm("Excluir página?")) return;
+      await supabase.from('pages').delete().eq('id',id);
+      pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; renderPages(); render();
+    }
+    function renderPages(){
+      pagesEl.innerHTML='';
+      pages.forEach(p=>{
+        const div=document.createElement('div');
+        div.className='page'+(p.id===activePageId?' active':'');
+        div.textContent=p.title;
+        div.onclick=()=>{activePageId=p.id; render();};
+        pagesEl.appendChild(div);
+      });
+    }
+
+    // blocos
+    async function loadBlocks(){
+      if(!activePageId) return [];
+      const { data } = await supabase.from('blocks').select('*').eq('page_id',activePageId).order('created_at');
+      currentBlocks=data||[]; return currentBlocks;
+    }
+    async function handleNewBlock(){
+      if(!currentUser||!activePageId) return alert("Precisa logar");
+      const title=modalTitleInput.value.trim()||"Novo tópico";
+      const content=$('#modalEditor').summernote('code').trim();
+      const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
+      currentBlocks.push(data);
+      closeNewBlockModal();
+      render();
+    }
+    async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
+    async function deleteBlock(id){ if(confirm("Excluir bloco?")){await supabase.from('blocks').delete().eq('id',id); render();} }
+
+    function renderBlocks(term=''){
+      blocksContainer.innerHTML='';
+      currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content?.toLowerCase().includes(term.toLowerCase()))
+      .forEach(b=>{
+        const card=document.createElement('div');
+        card.className='block';
+        card.innerHTML=`<h3>${b.title}</h3><div>${b.content || ''}</div>`;
+        card.onclick=()=>openEditModal(b);
+        blocksContainer.appendChild(card);
+      });
+    }
+    async function render(){ const p=pages.find(x=>x.id===activePageId); if(!p){pageTitle.textContent='Nenhuma página';return;} pageTitle.textContent=p.title; await loadBlocks(); renderBlocks(searchBar.value); }
+
+    // modais
+    function openNewBlockModal(){
+      $('#modalEditor').summernote({height:300});
+      newBlockModal.showModal();
+    }
+    function closeNewBlockModal(){
+      $('#modalEditor').summernote('destroy');
+      newBlockModal.close(); modalTitleInput.value='';
+    }
+    function openEditModal(b){
+      editModalBlockId.value=b.id;
+      editModalTitleInput.value=b.title;
+      $('#editModalEditor').summernote({height:300});
+      $('#editModalEditor').summernote('code', b.content || '');
+      editBlockModal.showModal();
+    }
+    async function handleSaveEdit(){
+      await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()});
+      editBlockModal.close(); render();
+    }
+    function closeEditModal(){
+      $('#editModalEditor').summernote('destroy');
+      editBlockModal.close();
+    }
+
+    // eventos
+    document.getElementById('addPageBtn').onclick=()=>{createPage(document.getElementById('newPageInput').value.trim()||'Nova página');};
+    document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
+    document.getElementById('addTextBtn').onclick=openNewBlockModal;
+    document.getElementById('closeModalBtn').onclick=closeNewBlockModal;
+    document.getElementById('saveModalBtn').onclick=handleNewBlock;
+    document.getElementById('closeEditModalBtn').onclick=closeEditModal;
+    document.getElementById('saveEditModalBtn').onclick=handleSaveEdit;
+    document.getElementById('deleteBtn').onclick=()=>deleteBlock(editModalBlockId.value);
+    document.getElementById('logoutBtn').onclick=async()=>{await supabase.auth.signOut();};
+    searchBar.oninput=(e)=>renderBlocks(e.target.value);
+
+    supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
+    supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
+
+    // === EXPORTAR TODOS OS BLOCOS EM PDF ===
     document.getElementById('exportPdfBtn').onclick = async () => {
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF("p", "mm", "a4");
@@ -103,21 +267,38 @@
       for (let block of blocks) {
         const canvas = await html2canvas(block);
         const imgData = canvas.toDataURL("image/png");
-
         const imgProps = pdf.getImageProperties(imgData);
         const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
         const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
         if (y + pdfHeight > pdf.internal.pageSize.getHeight() - 10) {
           pdf.addPage();
           y = 10;
         }
-
         pdf.addImage(imgData, "PNG", 10, y, pdfWidth, pdfHeight);
         y += pdfHeight + 10;
       }
-
       pdf.save("meus_blocos.pdf");
+    };
+
+    // === EXPORTAR BLOCO ÚNICO EM PDF ===
+    document.getElementById('exportOnePdfBtn').onclick = async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const blockId = document.getElementById('editModalBlockId').value;
+      const block = currentBlocks.find(b => b.id == blockId);
+      if (!block) { alert("Bloco não encontrado!"); return; }
+      const tempDiv = document.createElement('div');
+      tempDiv.style.width = "600px";
+      tempDiv.innerHTML = `<h3>${block.title}</h3><div>${block.content || ''}</div>`;
+      document.body.appendChild(tempDiv);
+      const canvas = await html2canvas(tempDiv);
+      const imgData = canvas.toDataURL("image/png");
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth() - 20;
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, "PNG", 10, 10, pdfWidth, pdfHeight);
+      pdf.save(`${block.title || 'bloco'}.pdf`);
+      document.body.removeChild(tempDiv);
     };
   </script>
 </body>
