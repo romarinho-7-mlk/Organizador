@@ -7,9 +7,7 @@
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  
   <style>
-    /* ... Seu CSS completo (sem alterações) ... */
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:linear-gradient(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
@@ -55,6 +53,19 @@
       cursor: pointer;
     }
     .block h3, .block p { margin: 0; }
+    
+    /* === CORREÇÃO: NOVO CSS PARA LIMITAR O CONTEÚDO DO BLOCO NA PRÉ-VISUALIZAÇÃO === */
+    .block .content-preview {
+      /* Limita a altura a aproximadamente 5 linhas */
+      max-height: 80px; 
+      overflow: hidden; /* Corta o conteúdo que excede a altura */
+      text-overflow: ellipsis;
+      /* Propriedades para garantir que o corte funcione com reticências em Webkit (Chrome, Safari) */
+      display: -webkit-box;
+      -webkit-line-clamp: 5; /* Limita a 5 linhas */
+      -webkit-box-orient: vertical;
+    }
+    /* ============================================================================== */
 
     .title-input { font-weight:bold; border:1px solid #ccc; padding:6px; border-radius:8px; }
 
@@ -113,7 +124,7 @@
           <input type="text" id="searchBar" class="btn" placeholder="Pesquisar..." />
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
-            <button id="generatePdfBtn" class="btn">Gerar PDF</button>
+            <button id="generatePdfBtn" class="btn">Gerar PDF</button> 
             <button id="deletePageBtn" class="btn danger">Excluir página</button>
             <button id="logoutBtn" class="btn danger">Sair</button>
           </div>
@@ -154,7 +165,6 @@
       </div>
       <div id="editModalFileList"></div>
       <div class="modal-buttons">
-        
         <button id="generateBlockPdfBtn" class="btn">Gerar PDF do Bloco</button>
         <button id="closeEditModalBtn" class="btn">Fechar</button>
         <button id="saveEditModalBtn" class="btn">Salvar Alterações</button>
@@ -243,8 +253,12 @@
       .forEach(b=>{
         const card=document.createElement('div');
         card.className='block';
-        // CORREÇÃO: Adicionado '|| ''' (fallback) para evitar erro no display de blocos antigos com content nulo.
-        card.innerHTML=`<h3>${b.title}</h3><div>${b.content || ''}</div>`;
+        // === CORREÇÃO: Aplica a nova classe 'content-preview' para limitar a altura ===
+        card.innerHTML=`
+          <h3>${b.title}</h3>
+          <div class="content-preview">${b.content || ''}</div>
+        `;
+        // ==============================================================================
         card.onclick=()=>openEditModal(b);
         blocksContainer.appendChild(card);
       });
@@ -330,14 +344,12 @@
     }
 
     // --- Funções PDF (ADICIONADAS) ---
-    // Função para gerar PDF de todos os blocos (mantida)
+    // Função para gerar PDF de todos os blocos
     async function generatePDF() {
       if (!activePageId) {
         alert('Selecione uma página para gerar o PDF.');
         return;
       }
-      
-      // ... Lógica para gerar PDF de todos os blocos (mantida) ...
 
       const container = document.getElementById('blocksContainer');
       const pageName = document.getElementById('pageTitle').textContent.trim() || 'Documento';
@@ -432,7 +444,7 @@
       }
     }
 
-    // === 2. ADIÇÃO: Nova função para gerar PDF de um Bloco específico ===
+    // Função para gerar PDF de um Bloco específico
     async function generateBlockPDF() {
       const title = editModalTitleInput.value.trim() || 'Novo tópico';
       const content = $('#editModalEditor').summernote('code');
@@ -444,13 +456,13 @@
       
       try {
           const tempDiv = document.createElement('div');
-          tempDiv.style.padding = '20px'; // Adiciona um padding para margem visual
+          // Estilo temporário para dar margem ao PDF
+          tempDiv.style.cssText = 'padding: 20px; background: white; max-width: 210mm; margin: 0 auto;'; 
           tempDiv.innerHTML = `
               <h1 style="margin-bottom: 20px;">${title}</h1>
               <div style="font-size: 14px;">${content}</div>
           `;
           
-          // Adiciona a div temporária ao corpo para que o html2canvas possa vê-la
           document.body.appendChild(tempDiv);
 
           const { jsPDF } = window.jspdf;
@@ -459,14 +471,12 @@
           const pdfMargin = 10;
           const targetWidth = pdfWidth - 2 * pdfMargin;
           
-          // Gera o Canvas a partir da div temporária
           const canvas = await html2canvas(tempDiv, {
               scale: 2,
               useCORS: true,
               logging: false,
           });
 
-          // Lógica de múltiplas páginas para o conteúdo do bloco
           const imgData = canvas.toDataURL('image/png');
           const imgHeight = canvas.height * targetWidth / canvas.width;
           const pageHeight = doc.internal.pageSize.getHeight();
@@ -525,7 +535,6 @@
           console.error('Erro ao gerar PDF do Bloco:', error);
           alert('Ocorreu um erro ao gerar o PDF do Bloco.');
       } finally {
-          // Remove a div temporária
           document.body.removeChild(tempDiv);
           spinner.remove();
       }
@@ -537,11 +546,7 @@
     document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
     document.getElementById('addTextBtn').onclick=openNewBlockModal;
     document.getElementById('generatePdfBtn').onclick = generatePDF; // PDF de todos os blocos
-    
-    // === 3. ADIÇÃO: Evento para o botão Gerar PDF do Bloco ===
-    document.getElementById('generateBlockPdfBtn').onclick = generateBlockPDF;
-    // ========================================================
-    
+    document.getElementById('generateBlockPdfBtn').onclick = generateBlockPDF; // PDF de um bloco
     document.getElementById('closeModalBtn').onclick=closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick=handleNewBlock;
     document.getElementById('closeEditModalBtn').onclick=closeEditModal;
