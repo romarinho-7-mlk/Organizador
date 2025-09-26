@@ -7,6 +7,7 @@
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
   <style>
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
@@ -54,18 +55,14 @@
     }
     .block h3, .block p { margin: 0; }
     
-    /* === CORREÇÃO: NOVO CSS PARA LIMITAR O CONTEÚDO DO BLOCO NA PRÉ-VISUALIZAÇÃO === */
     .block .content-preview {
-      /* Limita a altura a aproximadamente 5 linhas */
       max-height: 80px; 
-      overflow: hidden; /* Corta o conteúdo que excede a altura */
+      overflow: hidden; 
       text-overflow: ellipsis;
-      /* Propriedades para garantir que o corte funcione com reticências em Webkit (Chrome, Safari) */
       display: -webkit-box;
-      -webkit-line-clamp: 5; /* Limita a 5 linhas */
+      -webkit-line-clamp: 5; 
       -webkit-box-orient: vertical;
     }
-    /* ============================================================================== */
 
     .title-input { font-weight:bold; border:1px solid #ccc; padding:6px; border-radius:8px; }
 
@@ -177,7 +174,6 @@
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
-    // Usando a chave do seu arquivo anterior, que estava funcionando
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -240,7 +236,6 @@
       const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
       currentBlocks.push(data); 
       closeNewBlockModal(); 
-      // CORREÇÃO: Chama render() para recarregar do DB e garantir que o novo bloco apareça.
       render(); 
     }
     async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
@@ -248,17 +243,14 @@
 
     function renderBlocks(term=''){
       blocksContainer.innerHTML='';
-      // CORREÇÃO: Adicionado '?' (optional chaining) para evitar erro se 'content' for nulo no filtro.
       currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content?.toLowerCase().includes(term.toLowerCase()))
       .forEach(b=>{
         const card=document.createElement('div');
         card.className='block';
-        // === CORREÇÃO: Aplica a nova classe 'content-preview' para limitar a altura ===
         card.innerHTML=`
           <h3>${b.title}</h3>
           <div class="content-preview">${b.content || ''}</div>
         `;
-        // ==============================================================================
         card.onclick=()=>openEditModal(b);
         blocksContainer.appendChild(card);
       });
@@ -310,19 +302,15 @@
       editBlockModal.showModal(); 
     }
     
-    // CORREÇÃO ESSENCIAL: Adicionado 'async' e 'await' E FEEDBACK VISUAL
     async function handleSaveEdit(){ 
-      // 1. Pega os botões do modal de edição
       const saveBtn = document.getElementById('saveEditModalBtn');
       const closeBtn = document.getElementById('closeEditModalBtn');
       
-      // 2. Desabilita botões e mostra feedback
       saveBtn.textContent = 'Salvando...';
       saveBtn.disabled = true;
       closeBtn.disabled = true;
 
       try {
-          // O AWAIT garante que a execução espere a confirmação do Supabase.
           await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()}); 
           
           editBlockModal.close(); 
@@ -331,7 +319,6 @@
           console.error("Erro ao salvar o bloco:", error);
           alert("Ocorreu um erro ao salvar!");
       } finally {
-          // 3. Restaura botões, independentemente do sucesso ou falha
           saveBtn.textContent = 'Salvar Alterações';
           saveBtn.disabled = false;
           closeBtn.disabled = false;
@@ -343,8 +330,8 @@
       editBlockModal.close();
     }
 
-    // --- Funções PDF (ADICIONADAS) ---
-    // Função para gerar PDF de todos os blocos
+    // --- Funções PDF ---
+    // Função para gerar PDF de todos os blocos (Sem cabeçalho fixo por complexidade de corte)
     async function generatePDF() {
       if (!activePageId) {
         alert('Selecione uma página para gerar o PDF.');
@@ -444,10 +431,41 @@
       }
     }
 
-    // Função para gerar PDF de um Bloco específico
+    // Função para gerar PDF de um Bloco específico (AGORA COM CABEÇALHO REPETIDO)
     async function generateBlockPDF() {
       const title = editModalTitleInput.value.trim() || 'Novo tópico';
       const content = $('#editModalEditor').summernote('code');
+      const currentDate = new Date().toLocaleString('pt-BR');
+
+      // --- NOVO: Função para desenhar o cabeçalho ---
+      const HEADER_HEIGHT_MM = 30; // Altura reservada para o cabeçalho e título
+      const HEADER_TEXT_Y = 10; 
+      const BLOCK_TITLE_Y = 20;
+
+      function drawHeader(doc, blockTitle, date) {
+          const pdfWidth = doc.internal.pageSize.getWidth();
+          const pdfMargin = 10;
+
+          // Cabeçalho superior (Direita)
+          doc.setFontSize(10);
+          doc.setTextColor(150, 150, 150);
+          doc.text(`SUPORT ADD - Documento Gerado`, pdfWidth - pdfMargin, HEADER_TEXT_Y, { align: 'right' }); 
+          doc.text(`Data de Emissão: ${date}`, pdfWidth - pdfMargin, HEADER_TEXT_Y + 5, { align: 'right' });
+          
+          // Linha divisória superior
+          doc.setDrawColor(0, 0, 0);
+          doc.line(pdfMargin, HEADER_TEXT_Y + 7, pdfWidth - pdfMargin, HEADER_TEXT_Y + 7);
+
+          // Título do Bloco
+          doc.setFontSize(16);
+          doc.setTextColor(0, 0, 0); 
+          doc.text(blockTitle, pdfMargin, BLOCK_TITLE_Y);
+
+          // Linha divisória do Título
+          doc.setDrawColor(200, 200, 200);
+          doc.line(pdfMargin, BLOCK_TITLE_Y + 2, pdfWidth - pdfMargin, BLOCK_TITLE_Y + 2);
+      }
+      // --- FIM: Função para desenhar o cabeçalho ---
       
       const spinner = document.createElement('div');
       spinner.textContent = 'Gerando PDF...';
@@ -455,14 +473,10 @@
       document.body.appendChild(spinner);
       
       try {
+          // 1. Cria a div temporária SÓ com o conteúdo (sem o título)
           const tempDiv = document.createElement('div');
-          // Estilo temporário para dar margem ao PDF
-          tempDiv.style.cssText = 'padding: 20px; background: white; max-width: 210mm; margin: 0 auto;'; 
-          tempDiv.innerHTML = `
-              <h1 style="margin-bottom: 20px;">${title}</h1>
-              <div style="font-size: 14px;">${content}</div>
-          `;
-          
+          tempDiv.style.cssText = 'padding: 5px; background: white;';
+          tempDiv.innerHTML = `<div style="font-size: 14px;">${content}</div>`;
           document.body.appendChild(tempDiv);
 
           const { jsPDF } = window.jspdf;
@@ -471,48 +485,67 @@
           const pdfMargin = 10;
           const targetWidth = pdfWidth - 2 * pdfMargin;
           
+          // 2. Renderiza o conteúdo (sem cabeçalho) para o Canvas
           const canvas = await html2canvas(tempDiv, {
               scale: 2,
               useCORS: true,
               logging: false,
           });
+          
+          // 3. Desenha o cabeçalho na primeira página
+          drawHeader(doc, title, currentDate);
 
-          const imgData = canvas.toDataURL('image/png');
+          // 4. Lógica de múltiplas páginas AJUSTADA
           const imgHeight = canvas.height * targetWidth / canvas.width;
           const pageHeight = doc.internal.pageSize.getHeight();
           let heightLeft = imgHeight;
-          let yOffset = pdfMargin;
+          
+          // O conteúdo da imagem começa abaixo do cabeçalho
+          let yOffset = HEADER_HEIGHT_MM; 
           let pageNumber = 1;
 
           while (heightLeft > 0) {
-              let sHeight = pageHeight - yOffset - pdfMargin;
-              let sourceY = imgHeight - heightLeft;
+              
+              // Altura disponível para conteúdo nesta página (do yOffset até o fim)
+              let availableContentHeight = pageHeight - yOffset - pdfMargin;
 
+              // Se for uma página subsequente, adiciona e desenha o cabeçalho
               if (pageNumber > 1) {
                   doc.addPage();
-                  yOffset = pdfMargin;
-                  sHeight = pageHeight - yOffset - pdfMargin;
+                  drawHeader(doc, title, currentDate);
+                  
+                  // Reseta o yOffset para abaixo do novo cabeçalho
+                  yOffset = HEADER_HEIGHT_MM; 
+                  availableContentHeight = pageHeight - yOffset - pdfMargin;
               }
 
+              // Altura que a imagem ocupará na página (sHeight)
+              let sHeight = availableContentHeight;
+
+              // Posição Y no canvas original
+              let sourceY = imgHeight - heightLeft; 
+
+              // --- Lógica de corte (Crop) ---
               let canvasCrop = document.createElement('canvas');
               let ctx = canvasCrop.getContext('2d');
               canvasCrop.width = canvas.width;
               
-              let cropHeightPx = canvas.height * sHeight / imgHeight;
-
-              if (cropHeightPx > canvas.height - sourceY) {
-                  cropHeightPx = canvas.height - sourceY;
-                  sHeight = imgHeight * cropHeightPx / canvas.height;
+              let cropHeightPx = canvas.height * sHeight / imgHeight; 
+              
+              if (cropHeightPx > canvas.height - (imgHeight - heightLeft) * (canvas.height / imgHeight)) {
+                   cropHeightPx = canvas.height - (imgHeight - heightLeft) * (canvas.height / imgHeight);
+                   sHeight = imgHeight * cropHeightPx / canvas.height;
               }
 
               canvasCrop.height = cropHeightPx;
 
               ctx.drawImage(canvas,
-                  0, sourceY,
+                  0, canvas.height * sourceY / imgHeight, 
                   canvas.width, cropHeightPx,
                   0, 0,
                   canvas.width, cropHeightPx
               );
+              // --- Fim Lógica de corte ---
 
               let croppedImgData = canvasCrop.toDataURL('image/png');
 
@@ -520,7 +553,7 @@
                   croppedImgData,
                   'PNG',
                   pdfMargin,
-                  yOffset,
+                  yOffset, 
                   targetWidth,
                   sHeight
               );
@@ -545,8 +578,8 @@
     document.getElementById('addPageBtn').onclick=()=>{createPage(document.getElementById('newPageInput').value.trim()||'Nova página');};
     document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
     document.getElementById('addTextBtn').onclick=openNewBlockModal;
-    document.getElementById('generatePdfBtn').onclick = generatePDF; // PDF de todos os blocos
-    document.getElementById('generateBlockPdfBtn').onclick = generateBlockPDF; // PDF de um bloco
+    document.getElementById('generatePdfBtn').onclick = generatePDF; 
+    document.getElementById('generateBlockPdfBtn').onclick = generateBlockPDF; 
     document.getElementById('closeModalBtn').onclick=closeNewBlockModal;
     document.getElementById('saveModalBtn').onclick=handleNewBlock;
     document.getElementById('closeEditModalBtn').onclick=closeEditModal;
