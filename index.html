@@ -159,6 +159,7 @@
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
+    // Usando a chave do seu arquivo anterior, que estava funcionando
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -219,18 +220,23 @@
       const title=modalTitleInput.value.trim()||"Novo tópico";
       const content=$('#modalEditor').summernote('code').trim();
       const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
-      currentBlocks.push(data); closeNewBlockModal(); renderBlocks();
+      currentBlocks.push(data); 
+      closeNewBlockModal(); 
+      // CORREÇÃO: Chama render() para recarregar do DB e garantir que o novo bloco apareça.
+      render(); 
     }
     async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
     async function deleteBlock(id){ if(confirm("Excluir bloco?")){await supabase.from('blocks').delete().eq('id',id); render();} }
 
     function renderBlocks(term=''){
       blocksContainer.innerHTML='';
-      currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content.toLowerCase().includes(term.toLowerCase()))
+      // CORREÇÃO: Adicionado '?' (optional chaining) para evitar erro se 'content' for nulo no filtro.
+      currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content?.toLowerCase().includes(term.toLowerCase()))
       .forEach(b=>{
         const card=document.createElement('div');
         card.className='block';
-        card.innerHTML=`<h3>${b.title}</h3><div>${b.content}</div>`;
+        // CORREÇÃO: Adicionado '|| ''' (fallback) para evitar erro no display de blocos antigos com content nulo.
+        card.innerHTML=`<h3>${b.title}</h3><div>${b.content || ''}</div>`;
         card.onclick=()=>openEditModal(b);
         blocksContainer.appendChild(card);
       });
@@ -281,11 +287,35 @@
       $('#editModalEditor').summernote('code', b.content || '');
       editBlockModal.showModal(); 
     }
-    function handleSaveEdit(){ 
-      updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()}); 
-      editBlockModal.close(); 
-      render(); 
+    
+    // CORREÇÃO ESSENCIAL: Adicionado 'async' e 'await' E FEEDBACK VISUAL
+    async function handleSaveEdit(){ 
+      // 1. Pega os botões do modal de edição
+      const saveBtn = document.getElementById('saveEditModalBtn');
+      const closeBtn = document.getElementById('closeEditModalBtn');
+      
+      // 2. Desabilita botões e mostra feedback
+      saveBtn.textContent = 'Salvando...';
+      saveBtn.disabled = true;
+      closeBtn.disabled = true;
+
+      try {
+          // O AWAIT garante que a execução espere a confirmação do Supabase.
+          await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()}); 
+          
+          editBlockModal.close(); 
+          render(); 
+      } catch (error) {
+          console.error("Erro ao salvar o bloco:", error);
+          alert("Ocorreu um erro ao salvar!");
+      } finally {
+          // 3. Restaura botões, independentemente do sucesso ou falha
+          saveBtn.textContent = 'Salvar Alterações';
+          saveBtn.disabled = false;
+          closeBtn.disabled = false;
+      }
     }
+    
     function closeEditModal(){
       $('#editModalEditor').summernote('destroy');
       editBlockModal.close();
