@@ -11,7 +11,7 @@
   <style>
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:linear-gradient(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:pdsf(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
     .app{display:grid;grid-template-columns:280px 1fr;gap:20px;height:100vh;padding:20px}
     .sidebar{background:var(--card);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
     .logo{font-weight:700;color:var(--accent);font-size:18px}
@@ -438,7 +438,7 @@
       const currentDate = new Date().toLocaleString('pt-BR');
 
       // --- NOVO: Função para desenhar o cabeçalho ---
-      const HEADER_HEIGHT_MM = 30; // Altura reservada para o cabeçalho e título
+      const HEADER_HEIGHT_MM = 50; // Altura reservada para o cabeçalho e título
       const HEADER_TEXT_Y = 10; 
       const BLOCK_TITLE_Y = 20;
 
