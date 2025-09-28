@@ -357,7 +357,7 @@
         const targetWidth = pdfWidth - 2 * pdfMargin; 
         
         const canvas = await html2canvas(container, {
-          scale: 4, 
+          scale: 5, 
           useCORS: true,
           logging: false
         });
@@ -487,7 +487,7 @@
           
           // 2. Renderiza o conteúdo (sem cabeçalho) para o Canvas
           const canvas = await html2canvas(tempDiv, {
-              scale: 2,
+              scale: 4,
               useCORS: true,
               logging: false,
           });
