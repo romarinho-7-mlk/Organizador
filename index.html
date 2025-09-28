@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-BR">
-<<head>
+<head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SuportAdd</title>
@@ -229,15 +229,124 @@
       const { data } = await supabase.from('blocks').select('*').eq('page_id',activePageId).order('created_at');
       currentBlocks=data||[]; return currentBlocks;
     }
+    
+    // NOVO: Função para renderizar a lista de arquivos selecionados (agora com link de download)
+    function renderFileList(fileList, container) {
+        container.innerHTML = '';
+        fileList.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'attach-item';
+            const fileType = file.type.split('/')[0];
+            let filePreview = `<span>${file.name}</span>`;
+            
+            if (fileType === 'image') {
+                const imageUrl = URL.createObjectURL(file);
+                filePreview = `<img src="${imageUrl}" alt="${file.name}" style="max-width:100px; max-height:100px;"><span>${file.name}</span>`;
+            }
+            
+            item.innerHTML = `
+                ${filePreview}
+                <div class="actions">
+                    <button class="btn danger remove-file-btn" data-index="${index}">Remover</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+    
     async function handleNewBlock(){
       if(!currentUser||!activePageId) return alert("Precisa logar");
       const title=modalTitleInput.value.trim()||"Novo tópico";
       const content=$('#modalEditor').summernote('code').trim();
-      const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
+      
+      const attachments = [];
+
+      if (filesToUpload.length > 0) {
+          for (const file of filesToUpload) {
+              try {
+                  const fileExtension = file.name.split('.').pop();
+                  const fileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+                  const filePath = `block_attachments/${fileName}`;
+                  
+                  const { error } = await supabase.storage
+                      .from('uploads')
+                      .upload(filePath, file);
+
+                  if (error) {
+                      throw error;
+                  }
+                  
+                  const { publicURL, error: urlError } = supabase.storage
+                      .from('uploads')
+                      .getPublicUrl(filePath);
+
+                  if (urlError) {
+                      throw urlError;
+                  }
+
+                  attachments.push({
+                      name: file.name,
+                      url: publicURL
+                  });
+              } catch (error) {
+                  console.error('Erro ao fazer upload do arquivo:', error);
+                  alert('Erro ao enviar um ou mais arquivos. Tente novamente.');
+                  closeNewBlockModal();
+                  return; 
+              }
+          }
+      }
+
+      const { data, error } = await supabase
+          .from('blocks')
+          .insert({
+              page_id: activePageId,
+              title,
+              content,
+              attachments,
+              user_id: currentUser.id
+          })
+          .select()
+          .single();
+
+      if (error) {
+          console.error('Erro ao salvar o bloco:', error);
+          alert('Erro ao salvar o bloco. Tente novamente.');
+          return;
+      }
+
       currentBlocks.push(data); 
       closeNewBlockModal(); 
       render(); 
     }
+    
+    async function handleRemoveExistingFile(event) {
+        const button = event.target;
+        const url = button.dataset.url;
+        const blockId = editModalBlockId.value;
+
+        try {
+            const { error: storageError } = await supabase.storage.from('uploads').remove([url.split('/').pop()]);
+            if (storageError) {
+                throw storageError;
+            }
+
+            const block = currentBlocks.find(b => b.id === blockId);
+            if (block) {
+                block.attachments = block.attachments.filter(att => att.url !== url);
+                await updateBlock(blockId, { attachments: block.attachments });
+                render();
+            }
+
+            button.closest('.attach-item').remove();
+
+        } catch (error) {
+            console.error('Erro ao remover o arquivo:', error);
+            alert('Não foi possível remover o arquivo.');
+        }
+    }
+
+
     async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
     async function deleteBlock(id){ if(confirm("Excluir bloco?")){await supabase.from('blocks').delete().eq('id',id); render();} }
 
@@ -282,9 +391,31 @@
       modalFileListDiv.innerHTML=''; 
       filesToUpload=[]; 
     }
+
+    // CORRIGIDO: Agora renderiza links de download
     function openEditModal(b){ 
-      editModalBlockId.value=b.id; 
-      editModalTitleInput.value=b.title; 
+      editModalBlockId.value = b.id; 
+      editModalTitleInput.value = b.title; 
+      
+      filesToUpload = [];
+      editModalFileList.innerHTML = '';
+      
+      if (b.attachments && b.attachments.length > 0) {
+          b.attachments.forEach(attachment => {
+              const item = document.createElement('div');
+              item.className = 'attach-item';
+              item.innerHTML = `
+                  <div>
+                      <a href="${attachment.url}" target="_blank" download="${attachment.name}">${attachment.name}</a>
+                  </div>
+                  <div class="actions">
+                      <button data-url="${attachment.url}" data-name="${attachment.name}" class="btn danger remove-existing-file-btn">Remover</button>
+                  </div>
+              `;
+              editModalFileList.appendChild(item);
+          });
+      }
+
       $('#editModalEditor').summernote({
         height: 550,
         toolbar: [
@@ -311,9 +442,50 @@
       closeBtn.disabled = true;
 
       try {
-          await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()}); 
+          const blockId = editModalBlockId.value;
+          const { data: blockData, error: fetchError } = await supabase
+              .from('blocks')
+              .select('attachments')
+              .eq('id', blockId)
+              .single();
+
+          if (fetchError) throw fetchError;
+          let existingAttachments = blockData.attachments || [];
+
+          if (filesToUpload.length > 0) {
+              for (const file of filesToUpload) {
+                  const fileExtension = file.name.split('.').pop();
+                  const fileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
+                  const filePath = `block_attachments/${fileName}`;
+                  
+                  const { error: uploadError } = await supabase.storage
+                      .from('uploads')
+                      .upload(filePath, file);
+
+                  if (uploadError) throw uploadError;
+                  
+                  const { publicURL, error: urlError } = supabase.storage
+                      .from('uploads')
+                      .getPublicUrl(filePath);
+
+                  if (urlError) throw urlError;
+
+                  existingAttachments.push({
+                      name: file.name,
+                      url: publicURL
+                  });
+              }
+          }
           
-          editBlockModal.close(); 
+          const fieldsToUpdate = {
+              title: editModalTitleInput.value.trim(),
+              content: $('#editModalEditor').summernote('code').trim(),
+              attachments: existingAttachments
+          };
+
+          await updateBlock(blockId, fieldsToUpdate); 
+          
+          closeEditModal(); 
           render(); 
       } catch (error) {
           console.error("Erro ao salvar o bloco:", error);
@@ -328,10 +500,10 @@
     function closeEditModal(){
       $('#editModalEditor').summernote('destroy');
       editBlockModal.close();
+      filesToUpload = [];
+      editModalFilesInput.value = null; 
     }
 
-    // --- Funções PDF ---
-    // Função para gerar PDF de todos os blocos (Sem cabeçalho fixo por complexidade de corte)
     async function generatePDF() {
       if (!activePageId) {
         alert('Selecione uma página para gerar o PDF.');
@@ -357,7 +529,7 @@
         const targetWidth = pdfWidth - 2 * pdfMargin; 
         
         const canvas = await html2canvas(container, {
-          scale: 4, 
+          scale: 2, 
           useCORS: true,
           logging: false
         });
@@ -431,13 +603,11 @@
       }
     }
 
-    // Função para gerar PDF de um Bloco específico (AGORA COM CABEÇALHO REPETIDO)
     async function generateBlockPDF() {
       const title = editModalTitleInput.value.trim() || 'Novo tópico';
       const content = $('#editModalEditor').summernote('code');
       const currentDate = new Date().toLocaleString('pt-BR');
 
-      // --- NOVO: Função para desenhar o cabeçalho ---
       const HEADER_HEIGHT_MM = 60; 
       const HEADER_TEXT_Y = 10; 
       const BLOCK_TITLE_Y = 25;
@@ -446,30 +616,24 @@
           const pdfWidth = doc.internal.pageSize.getWidth();
           const pdfMargin = 10;
           
-          // Adicionar a logo
-          const logoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA+oAAACZCAMAAAAc2N84AAAAFVBMVEVHcEwAAAAqLwA/SEhUVFRkZGRzc3OZmZkFfE6qAAAAeElEQ4nO3cQQEAAAgDoG01/T9nDg5y8S2bQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoUKDAr7kBCk2f2B+i1rAAAAAASUVORK5CYII="; 
+          const logoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA+oAAACZCAMAAAAc2N84AAAAFVBMVEVHcEwAAAAqLwA/SEhUVFRkZGRzc3OZmZkFfE6qAAAAeElEQVR4nO3cQQEAAAgDoG01/T9nDg5y8S2bQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoUKDAr7kBCk2f2B+i1rAAAAAASUVORK5CYII="; 
           doc.addImage(logoBase64, 'PNG', pdfMargin, pdfMargin - 5, 50, 20);
           
-          // Cabeçalho superior (Direita)
           doc.setFontSize(10);
           doc.setTextColor(150, 150, 150);
           doc.text(`SUPORT ADD - Documento Gerado`, pdfWidth - pdfMargin, HEADER_TEXT_Y, { align: 'right' }); 
           doc.text(`Data de Emissão: ${date}`, pdfWidth - pdfMargin, HEADER_TEXT_Y + 5, { align: 'right' });
           
-          // Linha divisória superior
           doc.setDrawColor(0, 0, 0);
           doc.line(pdfMargin, HEADER_TEXT_Y + 7, pdfWidth - pdfMargin, HEADER_TEXT_Y + 7);
 
-          // Título do Bloco
           doc.setFontSize(16);
           doc.setTextColor(0, 0, 0); 
           doc.text(blockTitle, pdfMargin, BLOCK_TITLE_Y);
 
-          // Linha divisória do Título
           doc.setDrawColor(200, 200, 200);
           doc.line(pdfMargin, BLOCK_TITLE_Y + 2, pdfWidth - pdfMargin, BLOCK_TITLE_Y + 2);
       }
-      // --- FIM: Função para desenhar o cabeçalho ---
       
       const spinner = document.createElement('div');
       spinner.textContent = 'Gerando PDF...';
@@ -477,7 +641,6 @@
       document.body.appendChild(spinner);
       
       try {
-          // 1. Cria a div temporária SÓ com o conteúdo (sem o título)
           const tempDiv = document.createElement('div');
           tempDiv.style.cssText = 'padding: 5px; background: white;';
           tempDiv.innerHTML = `<div style="font-size: 14px;">${content}</div>`;
@@ -489,47 +652,37 @@
           const pdfMargin = 10;
           const targetWidth = pdfWidth - 2 * pdfMargin;
           
-          // 2. Renderiza o conteúdo (sem cabeçalho) para o Canvas
           const canvas = await html2canvas(tempDiv, {
-              scale: 4, // Aumentado para 4
+              scale: 2,
               useCORS: true,
               logging: false,
           });
           
-          // 3. Desenha o cabeçalho na primeira página
           drawHeader(doc, title, currentDate);
 
-          // 4. Lógica de múltiplas páginas AJUSTADA
           const imgHeight = canvas.height * targetWidth / canvas.width;
           const pageHeight = doc.internal.pageSize.getHeight();
           let heightLeft = imgHeight;
           
-          // O conteúdo da imagem começa abaixo do cabeçalho
           let yOffset = HEADER_HEIGHT_MM; 
           let pageNumber = 1;
 
           while (heightLeft > 0) {
               
-              // Altura disponível para conteúdo nesta página (do yOffset até o fim)
               let availableContentHeight = pageHeight - yOffset - pdfMargin;
 
-              // Se for uma página subsequente, adiciona e desenha o cabeçalho
               if (pageNumber > 1) {
                   doc.addPage();
                   drawHeader(doc, title, currentDate);
                   
-                  // Reseta o yOffset para abaixo do novo cabeçalho
                   yOffset = HEADER_HEIGHT_MM; 
                   availableContentHeight = pageHeight - yOffset - pdfMargin;
               }
 
-              // Altura que a imagem ocupará na página (sHeight)
               let sHeight = availableContentHeight;
 
-              // Posição Y no canvas original
               let sourceY = imgHeight - heightLeft; 
 
-              // --- Lógica de corte (Crop) ---
               let canvasCrop = document.createElement('canvas');
               let ctx = canvasCrop.getContext('2d');
               canvasCrop.width = canvas.width;
@@ -549,7 +702,6 @@
                   0, 0,
                   canvas.width, cropHeightPx
               );
-              // --- Fim Lógica de corte ---
 
               let croppedImgData = canvasCrop.toDataURL('image/png');
 
@@ -591,6 +743,32 @@
     document.getElementById('deleteBtn').onclick=()=>deleteBlock(editModalBlockId.value);
     document.getElementById('logoutBtn').onclick=async()=>{await supabase.auth.signOut();};
     searchBar.oninput=(e)=>renderBlocks(e.target.value);
+    
+    modalFilesInput.addEventListener('change', (event) => {
+        filesToUpload = Array.from(event.target.files);
+        renderFileList(filesToUpload, modalFileListDiv);
+    });
+    
+    modalFileListDiv.addEventListener('click', (event) => {
+        if (event.target.classList.contains('remove-file-btn')) {
+            const indexToRemove = event.target.dataset.index;
+            filesToUpload.splice(indexToRemove, 1);
+            renderFileList(filesToUpload, modalFileListDiv);
+        }
+    });
+
+    editBlockModal.addEventListener('click', (event) => {
+        if (event.target.classList.contains('remove-existing-file-btn')) {
+            handleRemoveExistingFile(event);
+        }
+    });
+    
+    editModalFilesInput.addEventListener('change', (event) => {
+        const newFiles = Array.from(event.target.files);
+        filesToUpload = [...filesToUpload, ...newFiles]; 
+        renderFileList(filesToUpload, editModalFileList);
+    });
+
 
     supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
     supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
