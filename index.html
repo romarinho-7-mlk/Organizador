@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SuportAdd</title>
   
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   
   <style>
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
@@ -118,7 +117,7 @@
       <div class="card">
         <header>
           <h1 id="pageTitle">Página</h1>
-          <input type="text" id="searchBar" class="btn" placeholder="Pesquisar..." />
+          <input type="text" id="searchBar" class="btn" placeholder="Pesquisar em todos os blocos..." />
           <div class="controls">
             <button id="addTextBtn" class="btn">Adicionar bloco de texto</button>
             <button id="generatePdfBtn" class="btn">Gerar PDF</button> 
@@ -192,7 +191,7 @@
     const editModalFilesInput = document.getElementById('editModalFilesInput');
     const searchBar = document.getElementById('searchBar');
 
-    let pages = [], activePageId = null, currentUser = null, currentBlocks = [], filesToUpload = [];
+    let pages = [], activePageId = null, currentUser = null, allBlocks = [], filesToUpload = [];
 
     // --- Páginas ---
     async function loadPages(){
@@ -200,17 +199,25 @@
       const { data } = await supabase.from('pages').select('*').order('created_at',{ascending:false});
       pages = data || [];
       activePageId = pages[0]?.id || null;
-      renderPages(); render();
+      renderPages(); 
+      await loadAllBlocks(); 
+      render();
     }
     async function createPage(title){
       if (!currentUser) return alert("Precisa logar");
       const { data } = await supabase.from('pages').insert({ title, user_id: currentUser.id }).select().single();
-      pages.unshift(data); activePageId=data.id; renderPages(); render();
+      pages.unshift(data); activePageId=data.id; 
+      renderPages(); 
+      await loadAllBlocks(); 
+      render();
     }
     async function deletePage(id){
       if(!confirm("Excluir página?")) return;
       await supabase.from('pages').delete().eq('id',id);
-      pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; renderPages(); render();
+      pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; 
+      renderPages(); 
+      await loadAllBlocks();
+      render();
     }
     function renderPages(){
       pagesEl.innerHTML=''; 
@@ -218,142 +225,81 @@
         const div=document.createElement('div');
         div.className='page'+(p.id===activePageId?' active':'');
         div.textContent=p.title;
-        div.onclick=()=>{activePageId=p.id; render();};
+        div.onclick=()=>{
+          activePageId=p.id; 
+          searchBar.value = ''; 
+          render();
+        };
         pagesEl.appendChild(div);
       });
     }
 
     // --- Blocos ---
-    async function loadBlocks(){
-      if(!activePageId) return [];
-      const { data } = await supabase.from('blocks').select('*').eq('page_id',activePageId).order('created_at');
-      currentBlocks=data||[]; return currentBlocks;
+    async function loadAllBlocks(){
+      if (!currentUser) return;
+      const { data } = await supabase.from('blocks').select('*').eq('user_id', currentUser.id).order('created_at');
+      allBlocks = data || [];
     }
-    
-    // NOVO: Função para renderizar a lista de arquivos selecionados (agora com link de download)
-    function renderFileList(fileList, container) {
-        container.innerHTML = '';
-        fileList.forEach((file, index) => {
-            const item = document.createElement('div');
-            item.className = 'attach-item';
-            const fileType = file.type.split('/')[0];
-            let filePreview = `<span>${file.name}</span>`;
-            
-            if (fileType === 'image') {
-                const imageUrl = URL.createObjectURL(file);
-                filePreview = `<img src="${imageUrl}" alt="${file.name}" style="max-width:100px; max-height:100px;"><span>${file.name}</span>`;
-            }
-            
-            item.innerHTML = `
-                ${filePreview}
-                <div class="actions">
-                    <button class="btn danger remove-file-btn" data-index="${index}">Remover</button>
-                </div>
-            `;
-            container.appendChild(item);
-        });
+
+    function renderBlocks(term=''){
+      blocksContainer.innerHTML='';
+      const filteredBlocks = allBlocks.filter(b => 
+        b.title.toLowerCase().includes(term.toLowerCase()) || 
+        b.content?.toLowerCase().includes(term.toLowerCase())
+      );
+
+      if (filteredBlocks.length === 0) {
+          blocksContainer.innerHTML = '<p style="text-align: center; color: #777;">Nenhum resultado encontrado.</p>';
+          return;
+      }
+      
+      filteredBlocks.forEach(b=>{
+        const card=document.createElement('div');
+        card.className='block';
+        const pageTitle = pages.find(p => p.id === b.page_id)?.title || 'Página desconhecida';
+        card.innerHTML=`
+          <p style="font-size: 0.8em; color: #555; margin-bottom: 5px;">#${pageTitle}</p>
+          <h3>${b.title}</h3>
+          <div class="content-preview">${b.content || ''}</div>
+        `;
+        card.onclick=()=>openEditModal(b);
+        blocksContainer.appendChild(card);
+      });
     }
-    
+
     async function handleNewBlock(){
       if(!currentUser||!activePageId) return alert("Precisa logar");
       const title=modalTitleInput.value.trim()||"Novo tópico";
       const content=$('#modalEditor').summernote('code').trim();
-      
-      const attachments = [];
-
-      if (filesToUpload.length > 0) {
-          for (const file of filesToUpload) {
-              try {
-                  const fileExtension = file.name.split('.').pop();
-                  const fileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
-                  const filePath = `block_attachments/${fileName}`;
-                  
-                  const { error } = await supabase.storage
-                      .from('uploads')
-                      .upload(filePath, file);
-
-                  if (error) {
-                      throw error;
-                  }
-                  
-                  const { publicURL, error: urlError } = supabase.storage
-                      .from('uploads')
-                      .getPublicUrl(filePath);
-
-                  if (urlError) {
-                      throw urlError;
-                  }
-
-                  attachments.push({
-                      name: file.name,
-                      url: publicURL
-                  });
-              } catch (error) {
-                  console.error('Erro ao fazer upload do arquivo:', error);
-                  alert('Erro ao enviar um ou mais arquivos. Tente novamente.');
-                  closeNewBlockModal();
-                  return; 
-              }
-          }
-      }
-
-      const { data, error } = await supabase
-          .from('blocks')
-          .insert({
-              page_id: activePageId,
-              title,
-              content,
-              attachments,
-              user_id: currentUser.id
-          })
-          .select()
-          .single();
-
-      if (error) {
-          console.error('Erro ao salvar o bloco:', error);
-          alert('Erro ao salvar o bloco. Tente novamente.');
-          return;
-      }
-
-      currentBlocks.push(data); 
+      const { data }=await supabase.from('blocks').insert({page_id:activePageId,title,content,user_id:currentUser.id}).select().single();
+      allBlocks.push(data); 
       closeNewBlockModal(); 
       render(); 
     }
-    
-    async function handleRemoveExistingFile(event) {
-        const button = event.target;
-        const url = button.dataset.url;
-        const blockId = editModalBlockId.value;
-
-        try {
-            const { error: storageError } = await supabase.storage.from('uploads').remove([url.split('/').pop()]);
-            if (storageError) {
-                throw storageError;
-            }
-
-            const block = currentBlocks.find(b => b.id === blockId);
-            if (block) {
-                block.attachments = block.attachments.filter(att => att.url !== url);
-                await updateBlock(blockId, { attachments: block.attachments });
-                render();
-            }
-
-            button.closest('.attach-item').remove();
-
-        } catch (error) {
-            console.error('Erro ao remover o arquivo:', error);
-            alert('Não foi possível remover o arquivo.');
-        }
+    async function updateBlock(id,fields){ 
+      await supabase.from('blocks').update(fields).eq('id',id); 
+      await loadAllBlocks();
+    }
+    async function deleteBlock(id){ 
+      if(confirm("Excluir bloco?")){
+        await supabase.from('blocks').delete().eq('id',id); 
+        await loadAllBlocks(); 
+        render();
+      }
     }
 
-
-    async function updateBlock(id,fields){ await supabase.from('blocks').update(fields).eq('id',id); }
-    async function deleteBlock(id){ if(confirm("Excluir bloco?")){await supabase.from('blocks').delete().eq('id',id); render();} }
-
-    function renderBlocks(term=''){
-      blocksContainer.innerHTML='';
-      currentBlocks.filter(b=>b.title.toLowerCase().includes(term.toLowerCase())||b.content?.toLowerCase().includes(term.toLowerCase()))
-      .forEach(b=>{
+    async function render(){
+      const p = pages.find(x => x.id === activePageId);
+      if(!p){
+        pageTitle.textContent = 'Nenhuma página';
+        blocksContainer.innerHTML = '<p style="text-align: center; color: #777;">Crie uma nova página para começar.</p>';
+        return;
+      }
+      pageTitle.textContent = p.title;
+      
+      const currentBlocks = allBlocks.filter(b => b.page_id === activePageId);
+      blocksContainer.innerHTML = '';
+      currentBlocks.forEach(b => {
         const card=document.createElement('div');
         card.className='block';
         card.innerHTML=`
@@ -364,8 +310,7 @@
         blocksContainer.appendChild(card);
       });
     }
-    async function render(){ const p=pages.find(x=>x.id===activePageId); if(!p){pageTitle.textContent='Nenhuma página';return;} pageTitle.textContent=p.title; await loadBlocks(); renderBlocks(searchBar.value); }
-
+    
     // --- Modais ---
     function openNewBlockModal(){ 
       $('#modalEditor').summernote({
@@ -391,31 +336,9 @@
       modalFileListDiv.innerHTML=''; 
       filesToUpload=[]; 
     }
-
-    // CORRIGIDO: Agora renderiza links de download
     function openEditModal(b){ 
-      editModalBlockId.value = b.id; 
-      editModalTitleInput.value = b.title; 
-      
-      filesToUpload = [];
-      editModalFileList.innerHTML = '';
-      
-      if (b.attachments && b.attachments.length > 0) {
-          b.attachments.forEach(attachment => {
-              const item = document.createElement('div');
-              item.className = 'attach-item';
-              item.innerHTML = `
-                  <div>
-                      <a href="${attachment.url}" target="_blank" download="${attachment.name}">${attachment.name}</a>
-                  </div>
-                  <div class="actions">
-                      <button data-url="${attachment.url}" data-name="${attachment.name}" class="btn danger remove-existing-file-btn">Remover</button>
-                  </div>
-              `;
-              editModalFileList.appendChild(item);
-          });
-      }
-
+      editModalBlockId.value=b.id; 
+      editModalTitleInput.value=b.title; 
       $('#editModalEditor').summernote({
         height: 550,
         toolbar: [
@@ -442,50 +365,9 @@
       closeBtn.disabled = true;
 
       try {
-          const blockId = editModalBlockId.value;
-          const { data: blockData, error: fetchError } = await supabase
-              .from('blocks')
-              .select('attachments')
-              .eq('id', blockId)
-              .single();
-
-          if (fetchError) throw fetchError;
-          let existingAttachments = blockData.attachments || [];
-
-          if (filesToUpload.length > 0) {
-              for (const file of filesToUpload) {
-                  const fileExtension = file.name.split('.').pop();
-                  const fileName = `${new Date().getTime()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
-                  const filePath = `block_attachments/${fileName}`;
-                  
-                  const { error: uploadError } = await supabase.storage
-                      .from('uploads')
-                      .upload(filePath, file);
-
-                  if (uploadError) throw uploadError;
-                  
-                  const { publicURL, error: urlError } = supabase.storage
-                      .from('uploads')
-                      .getPublicUrl(filePath);
-
-                  if (urlError) throw urlError;
-
-                  existingAttachments.push({
-                      name: file.name,
-                      url: publicURL
-                  });
-              }
-          }
+          await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()}); 
           
-          const fieldsToUpdate = {
-              title: editModalTitleInput.value.trim(),
-              content: $('#editModalEditor').summernote('code').trim(),
-              attachments: existingAttachments
-          };
-
-          await updateBlock(blockId, fieldsToUpdate); 
-          
-          closeEditModal(); 
+          editBlockModal.close(); 
           render(); 
       } catch (error) {
           console.error("Erro ao salvar o bloco:", error);
@@ -500,238 +382,68 @@
     function closeEditModal(){
       $('#editModalEditor').summernote('destroy');
       editBlockModal.close();
-      filesToUpload = [];
-      editModalFilesInput.value = null; 
     }
 
-    async function generatePDF() {
-      if (!activePageId) {
-        alert('Selecione uma página para gerar o PDF.');
-        return;
-      }
-
-      const container = document.getElementById('blocksContainer');
+    // --- Funções PDF com html2pdf.js ---
+    function generatePDF() {
       const pageName = document.getElementById('pageTitle').textContent.trim() || 'Documento';
+      const element = document.getElementById('blocksContainer');
+      const filename = `${pageName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
       
       const spinner = document.createElement('div');
       spinner.textContent = 'Gerando PDF...';
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
 
-      try {
-        const editButtons = container.querySelectorAll('.block .btn'); 
-        editButtons.forEach(btn => btn.style.display = 'none');
+      const options = {
+        margin: 10,
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
 
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = doc.internal.pageSize.getWidth();
-        const pdfMargin = 10;
-        const targetWidth = pdfWidth - 2 * pdfMargin; 
-        
-        const canvas = await html2canvas(container, {
-          scale: 2, 
-          useCORS: true,
-          logging: false
-        });
-
-        doc.setFontSize(16);
-        doc.text(`Relatório: ${pageName}`, pdfMargin, pdfMargin);
-        let yOffset = pdfMargin + 10; 
-        
-        const imgData = canvas.toDataURL('image/png');
-        const imgHeight = canvas.height * targetWidth / canvas.width;
-        
-        const pageHeight = doc.internal.pageSize.getHeight();
-        let heightLeft = imgHeight;
-        let pageNumber = 1;
-
-        while (heightLeft > 0) {
-            let sHeight = pageHeight - yOffset - pdfMargin; 
-            let sourceY = imgHeight - heightLeft; 
-
-            if (pageNumber > 1) {
-                doc.addPage();
-                yOffset = pdfMargin; 
-                sHeight = pageHeight - yOffset - pdfMargin;
-            }
-
-            let canvasCrop = document.createElement('canvas');
-            let ctx = canvasCrop.getContext('2d');
-            canvasCrop.width = canvas.width;
-            
-            let cropHeightPx = canvas.height * sHeight / imgHeight; 
-            
-            if (cropHeightPx > canvas.height - sourceY) {
-                cropHeightPx = canvas.height - sourceY;
-                sHeight = imgHeight * cropHeightPx / canvas.height;
-            }
-            
-            canvasCrop.height = cropHeightPx;
-            
-            ctx.drawImage(canvas, 
-                0, sourceY, 
-                canvas.width, cropHeightPx, 
-                0, 0, 
-                canvas.width, cropHeightPx 
-            );
-            
-            let croppedImgData = canvasCrop.toDataURL('image/png');
-
-            doc.addImage(
-                croppedImgData, 
-                'PNG', 
-                pdfMargin, 
-                yOffset, 
-                targetWidth, 
-                sHeight
-            ); 
-
-            heightLeft -= sHeight;
-            yOffset += sHeight; 
-            pageNumber++;
-        }
-        
-        doc.save(`${pageName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
-
-      } catch (error) {
-        console.error('Erro ao gerar PDF:', error);
-        alert('Ocorreu um erro ao gerar o PDF de todos os blocos.');
-      } finally {
-        const editButtons = container.querySelectorAll('.block .btn');
-        editButtons.forEach(btn => btn.style.display = '');
-        spinner.remove();
-      }
+      html2pdf().from(element).set(options).save().finally(() => {
+          spinner.remove();
+      });
     }
 
-    async function generateBlockPDF() {
+    function generateBlockPDF() {
       const title = editModalTitleInput.value.trim() || 'Novo tópico';
       const content = $('#editModalEditor').summernote('code');
-      const currentDate = new Date().toLocaleString('pt-BR');
+      const filename = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
 
-      const HEADER_HEIGHT_MM = 60; 
-      const HEADER_TEXT_Y = 10; 
-      const BLOCK_TITLE_Y = 25;
-
-      function drawHeader(doc, blockTitle, date) {
-          const pdfWidth = doc.internal.pageSize.getWidth();
-          const pdfMargin = 10;
-          
-          const logoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA+oAAACZCAMAAAAc2N84AAAAFVBMVEVHcEwAAAAqLwA/SEhUVFRkZGRzc3OZmZkFfE6qAAAAeElEQVR4nO3cQQEAAAgDoG01/T9nDg5y8S2bQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoUKDAr7kBCk2f2B+i1rAAAAAASUVORK5CYII="; 
-          doc.addImage(logoBase64, 'PNG', pdfMargin, pdfMargin - 5, 50, 20);
-          
-          doc.setFontSize(10);
-          doc.setTextColor(150, 150, 150);
-          doc.text(`SUPORT ADD - Documento Gerado`, pdfWidth - pdfMargin, HEADER_TEXT_Y, { align: 'right' }); 
-          doc.text(`Data de Emissão: ${date}`, pdfWidth - pdfMargin, HEADER_TEXT_Y + 5, { align: 'right' });
-          
-          doc.setDrawColor(0, 0, 0);
-          doc.line(pdfMargin, HEADER_TEXT_Y + 7, pdfWidth - pdfMargin, HEADER_TEXT_Y + 7);
-
-          doc.setFontSize(16);
-          doc.setTextColor(0, 0, 0); 
-          doc.text(blockTitle, pdfMargin, BLOCK_TITLE_Y);
-
-          doc.setDrawColor(200, 200, 200);
-          doc.line(pdfMargin, BLOCK_TITLE_Y + 2, pdfWidth - pdfMargin, BLOCK_TITLE_Y + 2);
-      }
-      
       const spinner = document.createElement('div');
       spinner.textContent = 'Gerando PDF...';
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
+
+      const options = {
+        margin: 10,
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = content;
+      document.body.appendChild(tempDiv);
       
-      try {
-          const tempDiv = document.createElement('div');
-          tempDiv.style.cssText = 'padding: 5px; background: white;';
-          tempDiv.innerHTML = `<div style="font-size: 14px;">${content}</div>`;
-          document.body.appendChild(tempDiv);
-
-          const { jsPDF } = window.jspdf;
-          const doc = new jsPDF('p', 'mm', 'a4');
-          const pdfWidth = doc.internal.pageSize.getWidth();
-          const pdfMargin = 10;
-          const targetWidth = pdfWidth - 2 * pdfMargin;
-          
-          const canvas = await html2canvas(tempDiv, {
-              scale: 2,
-              useCORS: true,
-              logging: false,
-          });
-          
-          drawHeader(doc, title, currentDate);
-
-          const imgHeight = canvas.height * targetWidth / canvas.width;
-          const pageHeight = doc.internal.pageSize.getHeight();
-          let heightLeft = imgHeight;
-          
-          let yOffset = HEADER_HEIGHT_MM; 
-          let pageNumber = 1;
-
-          while (heightLeft > 0) {
-              
-              let availableContentHeight = pageHeight - yOffset - pdfMargin;
-
-              if (pageNumber > 1) {
-                  doc.addPage();
-                  drawHeader(doc, title, currentDate);
-                  
-                  yOffset = HEADER_HEIGHT_MM; 
-                  availableContentHeight = pageHeight - yOffset - pdfMargin;
-              }
-
-              let sHeight = availableContentHeight;
-
-              let sourceY = imgHeight - heightLeft; 
-
-              let canvasCrop = document.createElement('canvas');
-              let ctx = canvasCrop.getContext('2d');
-              canvasCrop.width = canvas.width;
-              
-              let cropHeightPx = canvas.height * sHeight / imgHeight; 
-              
-              if (cropHeightPx > canvas.height - (imgHeight - heightLeft) * (canvas.height / imgHeight)) {
-                   cropHeightPx = canvas.height - (imgHeight - heightLeft) * (canvas.height / imgHeight);
-                   sHeight = imgHeight * cropHeightPx / canvas.height;
-              }
-
-              canvasCrop.height = cropHeightPx;
-
-              ctx.drawImage(canvas,
-                  0, canvas.height * sourceY / imgHeight, 
-                  canvas.width, cropHeightPx,
-                  0, 0,
-                  canvas.width, cropHeightPx
-              );
-
-              let croppedImgData = canvasCrop.toDataURL('image/png');
-
-              doc.addImage(
-                  croppedImgData,
-                  'PNG',
-                  pdfMargin,
-                  yOffset, 
-                  targetWidth,
-                  sHeight
-              );
-
-              heightLeft -= sHeight;
-              yOffset += sHeight;
-              pageNumber++;
-          }
-
-          doc.save(`${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
-      } catch (error) {
-          console.error('Erro ao gerar PDF do Bloco:', error);
-          alert('Ocorreu um erro ao gerar o PDF do Bloco.');
-      } finally {
+      html2pdf().from(tempDiv).set(options).save().finally(() => {
           document.body.removeChild(tempDiv);
           spinner.remove();
-      }
+      });
     }
 
 
     // --- Eventos ---
-    document.getElementById('addPageBtn').onclick=()=>{createPage(document.getElementById('newPageInput').value.trim()||'Nova página');};
+    document.getElementById('addPageBtn').onclick = () => {
+        const newPageInput = document.getElementById('newPageInput');
+        const title = newPageInput.value.trim() || 'Nova página';
+        createPage(title);
+        newPageInput.value = '';
+    };
     document.getElementById('deletePageBtn').onclick=()=>{if(activePageId) deletePage(activePageId);};
     document.getElementById('addTextBtn').onclick=openNewBlockModal;
     document.getElementById('generatePdfBtn').onclick = generatePDF; 
@@ -742,33 +454,13 @@
     document.getElementById('saveEditModalBtn').onclick=handleSaveEdit;
     document.getElementById('deleteBtn').onclick=()=>deleteBlock(editModalBlockId.value);
     document.getElementById('logoutBtn').onclick=async()=>{await supabase.auth.signOut();};
-    searchBar.oninput=(e)=>renderBlocks(e.target.value);
-    
-    modalFilesInput.addEventListener('change', (event) => {
-        filesToUpload = Array.from(event.target.files);
-        renderFileList(filesToUpload, modalFileListDiv);
-    });
-    
-    modalFileListDiv.addEventListener('click', (event) => {
-        if (event.target.classList.contains('remove-file-btn')) {
-            const indexToRemove = event.target.dataset.index;
-            filesToUpload.splice(indexToRemove, 1);
-            renderFileList(filesToUpload, modalFileListDiv);
-        }
-    });
-
-    editBlockModal.addEventListener('click', (event) => {
-        if (event.target.classList.contains('remove-existing-file-btn')) {
-            handleRemoveExistingFile(event);
-        }
-    });
-    
-    editModalFilesInput.addEventListener('change', (event) => {
-        const newFiles = Array.from(event.target.files);
-        filesToUpload = [...filesToUpload, ...newFiles]; 
-        renderFileList(filesToUpload, editModalFileList);
-    });
-
+    searchBar.oninput=(e)=>{
+      if (e.target.value.trim() === '') {
+        render(); 
+      } else {
+        renderBlocks(e.target.value); 
+      }
+    };
 
     supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
     supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
