@@ -357,7 +357,7 @@
         const targetWidth = pdfWidth - 2 * pdfMargin; 
         
         const canvas = await html2canvas(container, {
-          scale: 4, // Aumentado para 4
+          scale: 4, 
           useCORS: true,
           logging: false
         });
@@ -447,7 +447,7 @@
           const pdfMargin = 10;
           
           // Adicionar a logo
-          const logoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA+oAAACZCAMAAAAc2N84AAAAFVBMVEVHcEwAAAAqLwA/SEhUVFRkZGRzc3OZmZkFfE6qAAAAeElEQ4nO3cQQEAAAgDoG01/T9nDg5y8S2bQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoUKDAr7kBCk2f2B+i1rAAAAAASUVORK5CYII="; 
+          const logoBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA+oAAACZCAMAAAAc2N84AAAAFVBMVEVHcEwAAAAqLwA/SEhUVFRkZGRzc3OZmZkFfE6qAAAAeElEQ4nO3cQQEAAAgDoG01/T9nDg5y8S2bQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoECBQoUKDAr7kBCk2f2B+i1rAAAAAASUVORK5CYII="; 
           doc.addImage(logoBase64, 'PNG', pdfMargin, pdfMargin - 5, 50, 20);
           
           // Cabeçalho superior (Direita)
@@ -480,7 +480,7 @@
           // 1. Cria a div temporária SÓ com o conteúdo (sem o título)
           const tempDiv = document.createElement('div');
           tempDiv.style.cssText = 'padding: 5px; background: white;';
-          tempDiv.innerHTML = content;
+          tempDiv.innerHTML = `<div style="font-size: 14px;">${content}</div>`;
           document.body.appendChild(tempDiv);
 
           const { jsPDF } = window.jspdf;
