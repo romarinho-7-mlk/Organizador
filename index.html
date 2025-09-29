@@ -213,7 +213,8 @@
     }
     async function deletePage(id){
       if(!confirm("Excluir página?")) return;
-      await supabase.from('pages').delete().eq('id',id);
+      // PRONTO PARA EXCLUSÃO COMPARTILHADA: Se a RLS no Supabase permitir, funcionará.
+      await supabase.from('pages').delete().eq('id',id); 
       pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; 
       renderPages(); 
       await loadAllBlocks();
@@ -237,7 +238,7 @@
     // --- Blocos ---
     async function loadAllBlocks(){
       if (!currentUser) return;
-      // CORREÇÃO APLICADA AQUI: Removido o filtro de user_id.
+      // CORREÇÃO ANTERIOR MANTIDA: Carrega todos os blocos (compartilhamento).
       const { data } = await supabase.from('blocks').select('*').order('created_at');
       allBlocks = data || [];
     }
@@ -283,6 +284,7 @@
     }
     async function deleteBlock(id){ 
       if(confirm("Excluir bloco?")){
+        // PRONTO PARA EXCLUSÃO COMPARTILHADA: Se a RLS no Supabase permitir, funcionará.
         await supabase.from('blocks').delete().eq('id',id); 
         await loadAllBlocks(); 
         render();
@@ -366,8 +368,6 @@
       closeBtn.disabled = true;
 
       try {
-          // Note: O updateBlock ainda está usando a lógica de user_id no back-end (Supabase) 
-          // para garantir que a pessoa só edite o que ela criou, caso o RLS esteja configurado assim.
           await updateBlock(editModalBlockId.value,{title:editModalTitleInput.value,content:$('#editModalEditor').summernote('code').trim()}); 
           
           editBlockModal.close(); 
@@ -433,6 +433,7 @@
       tempDiv.innerHTML = content;
       document.body.appendChild(tempDiv);
       
+      // FUNÇÃO CORRIGIDA MANTIDA
       html2pdf().from(tempDiv).set(options).save().finally(() => {
           document.body.removeChild(tempDiv);
           spinner.remove();
