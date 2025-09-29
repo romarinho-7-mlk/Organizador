@@ -433,7 +433,7 @@
       tempDiv.innerHTML = content;
       document.body.appendChild(tempDiv);
       
-      html22pdf().from(tempDiv).set(options).save().finally(() => {
+      html2pdf().from(tempDiv).set(options).save().finally(() => {
           document.body.removeChild(tempDiv);
           spinner.remove();
       });
