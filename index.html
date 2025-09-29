@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   
   <style>
+    /* ... (CSS permanece inalterado) ... */
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:pdsf(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
@@ -237,7 +238,8 @@
     // --- Blocos ---
     async function loadAllBlocks(){
       if (!currentUser) return;
-      // CORREÇÃO: Removido o filtro de user_id para permitir VISUALIZAÇÃO COMPARTILHADA
+      // CORREÇÃO ESSENCIAL: Removido o filtro de user_id para visualização compartilhada
+      // Isso deve ser usado em conjunto com a RLS SELECT = TRUE no Supabase
       const { data } = await supabase.from('blocks').select('*').order('created_at');
       allBlocks = data || [];
     }
@@ -278,13 +280,11 @@
       render(); 
     }
     async function updateBlock(id,fields){ 
-      // Não filtra por user_id, a permissão está no RLS do Supabase (UPDATE liberado para authenticated)
       await supabase.from('blocks').update(fields).eq('id',id); 
       await loadAllBlocks();
     }
     async function deleteBlock(id){ 
       if(confirm("Excluir bloco?")){
-        // Não filtra por user_id, a permissão está no RLS do Supabase (DELETE liberado para authenticated)
         await supabase.from('blocks').delete().eq('id',id); 
         await loadAllBlocks(); 
         render();
@@ -439,7 +439,7 @@
       });
     }
 
-    // CORREÇÃO: generateBlockPDF() ajustada para evitar página em branco
+    // generateBlockPDF() ajustada para evitar página em branco
     function generateBlockPDF() {
       const title = editModalTitleInput.value.trim() || 'Novo tópico';
       const content = $('#editModalEditor').summernote('code');
@@ -507,7 +507,7 @@
       }
     };
 
-    supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});\
+    supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
     supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
   </script>
 </body>
