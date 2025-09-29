@@ -11,7 +11,7 @@
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:pdsf(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
-    .app{display:grid;grid-template-columns:330px 1fr;gap:20px;height:100vh;padding:20px}
+    .app{display:grid;grid-template-columns:280px 1fr;gap:20px;height:100vh;padding:20px}
     .sidebar{background:var(--card);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
     .logo{font-weight:700;color:var(--accent);font-size:18px}
     .pages{flex:1;overflow:auto}
@@ -213,8 +213,7 @@
     }
     async function deletePage(id){
       if(!confirm("Excluir página?")) return;
-      // PRONTO PARA EXCLUSÃO COMPARTILHADA: Se a RLS no Supabase permitir, funcionará.
-      await supabase.from('pages').delete().eq('id',id); 
+      await supabase.from('pages').delete().eq('id',id);
       pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; 
       renderPages(); 
       await loadAllBlocks();
@@ -238,7 +237,7 @@
     // --- Blocos ---
     async function loadAllBlocks(){
       if (!currentUser) return;
-      // CORREÇÃO ANTERIOR MANTIDA: Carrega todos os blocos (compartilhamento).
+      // CORREÇÃO: Removido o filtro de user_id para visualização compartilhada
       const { data } = await supabase.from('blocks').select('*').order('created_at');
       allBlocks = data || [];
     }
@@ -284,7 +283,6 @@
     }
     async function deleteBlock(id){ 
       if(confirm("Excluir bloco?")){
-        // PRONTO PARA EXCLUSÃO COMPARTILHADA: Se a RLS no Supabase permitir, funcionará.
         await supabase.from('blocks').delete().eq('id',id); 
         await loadAllBlocks(); 
         render();
@@ -398,6 +396,27 @@
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
 
+      // NOVO CÓDIGO DO CABEÇALHO PARA PÁGINA
+      const headerHtml = `
+          <div style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px;">
+              <h2 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Página)</h2>
+              <p style="margin: 5px 0 0;">Página Exportada: ${pageName}</p>
+          </div>
+      `;
+      
+      // Cria um container temporário, adiciona o cabeçalho e o clone do conteúdo principal
+      const tempWrapper = document.createElement('div');
+      tempWrapper.innerHTML = headerHtml; 
+      
+      // Clonar o container de blocos para preservar o conteúdo e os estilos
+      const contentClone = element.cloneNode(true);
+      // Remove a sombra e padding do cartão principal para a impressão
+      contentClone.style.boxShadow = 'none';
+      contentClone.style.padding = '0';
+      
+      tempWrapper.appendChild(contentClone);
+      document.body.appendChild(tempWrapper); 
+
       const options = {
         margin: 10,
         filename: filename,
@@ -406,8 +425,9 @@
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      html2pdf().from(element).set(options).save().finally(() => {
+      html2pdf().from(tempWrapper).set(options).save().finally(() => {
           spinner.remove();
+          document.body.removeChild(tempWrapper); // Remover do DOM após a geração
       });
     }
 
@@ -421,6 +441,19 @@
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
 
+      // NOVO CÓDIGO DO CABEÇALHO PARA BLOCO
+      const headerHtml = `
+          <div style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px;">
+              <h2 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Bloco)</h2>
+              <p style="margin: 5px 0 0;">Tópico Exportado: ${title}</p>
+          </div>
+      `;
+      
+      const tempDiv = document.createElement('div');
+      // Combina o cabeçalho com o conteúdo
+      tempDiv.innerHTML = headerHtml + content; 
+      document.body.appendChild(tempDiv);
+      
       const options = {
         margin: 10,
         filename: filename,
@@ -429,11 +462,6 @@
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = content;
-      document.body.appendChild(tempDiv);
-      
-      // FUNÇÃO CORRIGIDA MANTIDA
       html2pdf().from(tempDiv).set(options).save().finally(() => {
           document.body.removeChild(tempDiv);
           spinner.remove();
