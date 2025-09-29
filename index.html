@@ -237,7 +237,7 @@
     // --- Blocos ---
     async function loadAllBlocks(){
       if (!currentUser) return;
-      // CORREÇÃO: Removido o filtro de user_id para visualização compartilhada
+      // CORREÇÃO: Removido o filtro de user_id para permitir VISUALIZAÇÃO COMPARTILHADA
       const { data } = await supabase.from('blocks').select('*').order('created_at');
       allBlocks = data || [];
     }
@@ -278,11 +278,13 @@
       render(); 
     }
     async function updateBlock(id,fields){ 
+      // Não filtra por user_id, a permissão está no RLS do Supabase (UPDATE liberado para authenticated)
       await supabase.from('blocks').update(fields).eq('id',id); 
       await loadAllBlocks();
     }
     async function deleteBlock(id){ 
       if(confirm("Excluir bloco?")){
+        // Não filtra por user_id, a permissão está no RLS do Supabase (DELETE liberado para authenticated)
         await supabase.from('blocks').delete().eq('id',id); 
         await loadAllBlocks(); 
         render();
@@ -386,6 +388,8 @@
     }
 
     // --- Funções PDF com html2pdf.js ---
+
+    // generatePDF() com tentativa de cabeçalho repetido
     function generatePDF() {
       const pageName = document.getElementById('pageTitle').textContent.trim() || 'Documento';
       const element = document.getElementById('blocksContainer');
@@ -396,41 +400,46 @@
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
 
-      // NOVO CÓDIGO DO CABEÇALHO PARA PÁGINA
+      // Definição do HTML do cabeçalho
       const headerHtml = `
-          <div style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px;">
-              <h2 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Página)</h2>
-              <p style="margin: 5px 0 0;">Página Exportada: ${pageName}</p>
+          <div id="pdf-header-to-repeat" style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 5px; height: 60px;">
+              <h4 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Página)</h4>
+              <p style="margin: 3px 0 0; font-size: 0.8em;">Página Exportada: ${pageName}</p>
           </div>
       `;
       
-      // Cria um container temporário, adiciona o cabeçalho e o clone do conteúdo principal
-      const tempWrapper = document.createElement('div');
-      tempWrapper.innerHTML = headerHtml; 
-      
-      // Clonar o container de blocos para preservar o conteúdo e os estilos
-      const contentClone = element.cloneNode(true);
-      // Remove a sombra e padding do cartão principal para a impressão
-      contentClone.style.boxShadow = 'none';
-      contentClone.style.padding = '0';
-      
-      tempWrapper.appendChild(contentClone);
-      document.body.appendChild(tempWrapper); 
-
       const options = {
-        margin: 10,
+        margin: [10, 10, 10, 10], // Margens: Topo, Direita, Fundo, Esquerda
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        html2canvas: { 
+            scale: 2,
+            onclone: (doc) => {
+                const headerElement = doc.createElement('div');
+                headerElement.innerHTML = headerHtml;
+                headerElement.style.padding = '10px'; 
+                doc.body.insertBefore(headerElement, doc.body.firstChild);
+            }
+        },
+        jsPDF: { 
+            unit: 'mm', 
+            format: 'a4', 
+            orientation: 'portrait',
+            beforeAddPage: (instance, page) => {
+                const header = document.getElementById('pdf-header-to-repeat');
+                if (header) {
+                    instance.fromHTML(header, 10, 10, { width: 190 });
+                }
+            }
+        }
       };
-
-      html2pdf().from(tempWrapper).set(options).save().finally(() => {
+      
+      html2pdf().from(element).set(options).save().finally(() => {
           spinner.remove();
-          document.body.removeChild(tempWrapper); // Remover do DOM após a geração
       });
     }
 
+    // CORREÇÃO: generateBlockPDF() ajustada para evitar página em branco
     function generateBlockPDF() {
       const title = editModalTitleInput.value.trim() || 'Novo tópico';
       const content = $('#editModalEditor').summernote('code');
@@ -441,7 +450,7 @@
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
 
-      // NOVO CÓDIGO DO CABEÇALHO PARA BLOCO
+      // CÓDIGO DO CABEÇALHO PARA BLOCO
       const headerHtml = `
           <div style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px;">
               <h2 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Bloco)</h2>
@@ -450,12 +459,16 @@
       `;
       
       const tempDiv = document.createElement('div');
-      // Combina o cabeçalho com o conteúdo
+      // Adicionado style para limpar margens/padding que podem causar a quebra de página
+      tempDiv.style.margin = '0';
+      tempDiv.style.padding = '0';
+      
       tempDiv.innerHTML = headerHtml + content; 
       document.body.appendChild(tempDiv);
       
       const options = {
-        margin: 10,
+        // Redução da margem inferior para ajudar a evitar a página em branco
+        margin: [10, 10, 5, 10], // Topo, Direita, FUNDO (5mm), Esquerda
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
@@ -494,7 +507,7 @@
       }
     };
 
-    supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});
+    supabase.auth.onAuthStateChange((ev,session)=>{if(ev==='SIGNED_OUT'){window.location.href='auth.html';}else if(session){currentUser=session.user; loadPages();}});\
     supabase.auth.getSession().then(({data:{session}})=>{if(session){currentUser=session.user; loadPages();}});
   </script>
 </body>
