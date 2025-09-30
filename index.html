@@ -8,24 +8,45 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   
   <style>
-    /* ... (CSS permanece inalterado) ... */
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:pdsf(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:linear-gradient(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
     .app{display:grid;grid-template-columns:330px 1fr;gap:20px;height:100vh;padding:20px}
-    .sidebar{background:var(--card);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+    /* CORREÇÃO DO SCROLL: Adicionado max-height e min-height */
+    .sidebar{
+        background:var(--card);
+        border-radius:12px;
+        padding:14px;
+        display:flex;
+        flex-direction:column;
+        gap:12px;
+        max-height: calc(100vh - 40px);
+    }
     .logo{font-weight:700;color:var(--accent);font-size:18px}
-    .pages{flex:1;overflow:auto}
+    .pages{
+        flex:1;
+        overflow:auto;
+        min-height: 0; 
+    }
     .page{background:var(--glass);padding:8px;border-radius:8px;margin-bottom:8px;cursor:pointer}
     .page.active{outline:2px solid rgba(255, 3, 3, 0.069)}
     .new-page{display:flex;gap:8px}
-    .btn{background:white;border:1px solid rgba(116, 116, 116, 0.963);padding:8px;border-radius:8px;color:var(--muted);cursor:pointer}
-    .main{padding:18px;}
-    .card{background:#f0f9f9;padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(1, 1, 1, 0.6)}
-    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-    h1{margin:0;font-size:20px}
-    .controls{display:flex;gap:8px}
 
+    /* Estilo para o campo de input de Nova Página (AGORA BRANCO) */
+    .new-page input#newPageInput {
+        background-color: white; 
+        border: 1px solid #ccc; 
+        padding: 10px; 
+        border-radius: 20px; 
+        flex-grow: 1; 
+        color: #333; 
+        font-weight: normal; 
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+    .new-page input#newPageInput::placeholder {
+        color: #999;
+    }
+    
     .btn {
       border: none;
       padding: 10px 20px;
@@ -41,6 +62,27 @@
     .btn:active { transform: translateY(1px); }
     .danger { background: #dc3545; color: white; }
     .danger:hover { background: #c82333; }
+
+    .main{padding:18px;}
+    .card{background:#f0f9f9;padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(1, 1, 1, 0.6)}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    h1{margin:0;font-size:20px}
+    .controls{display:flex;gap:8px}
+
+    /* ESTILO EXCLUSIVO para a Barra de Pesquisa */
+    #searchBar {
+      background: #f0f0f0; 
+      color: #333; 
+      border: 1px solid #ccc; 
+      padding: 10px 20px;
+      border-radius: 20px; 
+      box-shadow: none; 
+      transition: background 0.3s ease;
+      background-image: none !important;
+    }
+    #searchBar:hover {
+        background: #e0e0e0;
+    }
 
     .blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
     .block, .attach-item {
@@ -73,6 +115,7 @@
       .blocks{grid-template-columns:1fr}
     }
 
+    /* AJUSTE: Adicionado position: relative para posicionamento do 'x' */
     dialog {
       border: none;
       border-radius: 12px;
@@ -81,11 +124,32 @@
       max-width: 900px;
       width: 90%;
       background: #fff;
+      position: relative; 
     }
     dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
     .modal-content { display: flex; flex-direction: column; gap: 16px; }
-    .modal-content input, .modal-content .btn { width: 100%; }
+    .modal-content .modal-buttons .btn { width: auto; } 
+
     .modal-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+
+    /* ESTILO DO BOTÃO FECHAR (X) */
+    .modal-close-btn {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #888;
+        background: none;
+        border: none;
+        cursor: pointer;
+        line-height: 1;
+        z-index: 10;
+    }
+    .modal-close-btn:hover {
+        color: #dc3545;
+    }
+
 
     #editModalFileList, #modalFileList {
       display: grid;
@@ -107,11 +171,13 @@
   <div class="app">
     <aside class="sidebar card">
       <div class="logo">Suport - ADD </div>
-      <div class="pages" id="pages"></div>
+      
       <div class="new-page">
-        <input id="newPageInput" class="btn" placeholder="Nome da página" />
+        <input id="newPageInput" placeholder="Nome da página" />
         <button id="addPageBtn" class="btn">Criar</button>
       </div>
+
+      <div class="pages" id="pages"></div>
     </aside>
 
     <main class="main">
@@ -133,6 +199,7 @@
 
   <dialog id="newBlockModal">
     <div class="modal-content">
+      <button class="modal-close-btn" onclick="closeNewBlockModal()">×</button>
       <h2>Novo Bloco de Texto</h2>
       <input type="text" id="modalTitle" placeholder="Novo tópico" class="title-input" />
       <div id="modalEditor"></div>
@@ -151,6 +218,7 @@
 
   <dialog id="editBlockModal">
     <div class="modal-content">
+      <button class="modal-close-btn" onclick="closeEditModal()">×</button>
       <input type="hidden" id="editModalBlockId" />
       <h2>Detalhes do Bloco</h2>
       <input type="text" id="editModalTitleInput" class="title-input" />
@@ -238,8 +306,7 @@
     // --- Blocos ---
     async function loadAllBlocks(){
       if (!currentUser) return;
-      // CORREÇÃO ESSENCIAL: Removido o filtro de user_id para visualização compartilhada
-      // Isso deve ser usado em conjunto com a RLS SELECT = TRUE no Supabase
+      // CORREÇÃO: Removido o filtro de user_id para visualização compartilhada
       const { data } = await supabase.from('blocks').select('*').order('created_at');
       allBlocks = data || [];
     }
@@ -387,9 +454,11 @@
       editBlockModal.close();
     }
 
-    // --- Funções PDF com html2pdf.js ---
+    // EXPOR FUNÇÕES PARA O ESCOPO GLOBAL (Corrigindo o problema do onclick)
+    window.closeNewBlockModal = closeNewBlockModal;
+    window.closeEditModal = closeEditModal;
 
-    // generatePDF() com tentativa de cabeçalho repetido
+    // --- Funções PDF com html2pdf.js ---
     function generatePDF() {
       const pageName = document.getElementById('pageTitle').textContent.trim() || 'Documento';
       const element = document.getElementById('blocksContainer');
@@ -400,46 +469,41 @@
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
 
-      // Definição do HTML do cabeçalho
+      // NOVO CÓDIGO DO CABEÇALHO PARA PÁGINA
       const headerHtml = `
-          <div id="pdf-header-to-repeat" style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 5px; height: 60px;">
-              <h4 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Página)</h4>
-              <p style="margin: 3px 0 0; font-size: 0.8em;">Página Exportada: ${pageName}</p>
+          <div style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px;">
+              <h2 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Página)</h2>
+              <p style="margin: 5px 0 0;">Página Exportada: ${pageName}</p>
           </div>
       `;
       
+      // Cria um container temporário, adiciona o cabeçalho e o clone do conteúdo principal
+      const tempWrapper = document.createElement('div');
+      tempWrapper.innerHTML = headerHtml; 
+      
+      // Clonar o container de blocos para preservar o conteúdo e os estilos
+      const contentClone = element.cloneNode(true);
+      // Remove a sombra e padding do cartão principal para a impressão
+      contentClone.style.boxShadow = 'none';
+      contentClone.style.padding = '0';
+      
+      tempWrapper.appendChild(contentClone);
+      document.body.appendChild(tempWrapper); 
+
       const options = {
-        margin: [10, 10, 10, 10], // Margens: Topo, Direita, Fundo, Esquerda
+        margin: 10,
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-            scale: 2,
-            onclone: (doc) => {
-                const headerElement = doc.createElement('div');
-                headerElement.innerHTML = headerHtml;
-                headerElement.style.padding = '10px'; 
-                doc.body.insertBefore(headerElement, doc.body.firstChild);
-            }
-        },
-        jsPDF: { 
-            unit: 'mm', 
-            format: 'a4', 
-            orientation: 'portrait',
-            beforeAddPage: (instance, page) => {
-                const header = document.getElementById('pdf-header-to-repeat');
-                if (header) {
-                    instance.fromHTML(header, 10, 10, { width: 190 });
-                }
-            }
-        }
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
-      
-      html2pdf().from(element).set(options).save().finally(() => {
+
+      html2pdf().from(tempWrapper).set(options).save().finally(() => {
           spinner.remove();
+          document.body.removeChild(tempWrapper); // Remover do DOM após a geração
       });
     }
 
-    // generateBlockPDF() ajustada para evitar página em branco
     function generateBlockPDF() {
       const title = editModalTitleInput.value.trim() || 'Novo tópico';
       const content = $('#editModalEditor').summernote('code');
@@ -450,7 +514,7 @@
       spinner.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:20px;border-radius:10px;z-index:9999;';
       document.body.appendChild(spinner);
 
-      // CÓDIGO DO CABEÇALHO PARA BLOCO
+      // NOVO CÓDIGO DO CABEÇALHO PARA BLOCO
       const headerHtml = `
           <div style="text-align: center; border-bottom: 2px solid #007bff; padding-bottom: 10px; margin-bottom: 20px;">
               <h2 style="margin: 0; color: #007bff; font-weight: bold;">RELATÓRIO SUPORT-ADD (Bloco)</h2>
@@ -459,16 +523,12 @@
       `;
       
       const tempDiv = document.createElement('div');
-      // Adicionado style para limpar margens/padding que podem causar a quebra de página
-      tempDiv.style.margin = '0';
-      tempDiv.style.padding = '0';
-      
+      // Combina o cabeçalho com o conteúdo
       tempDiv.innerHTML = headerHtml + content; 
       document.body.appendChild(tempDiv);
       
       const options = {
-        // Redução da margem inferior para ajudar a evitar a página em branco
-        margin: [10, 10, 5, 10], // Topo, Direita, FUNDO (5mm), Esquerda
+        margin: 10,
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
