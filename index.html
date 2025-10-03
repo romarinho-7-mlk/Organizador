@@ -11,7 +11,7 @@
     :root{--bg:#3e4754;--card:#04364bfb;--muted:#048487;--accent:#06b6d4;--glass:rgba(255,255,255,0.03)}
     *{box-sizing:border-box}
     html,body{height:100%;margin:0;font-family:Inter,system-ui;color:#002e37;background:linear-gradient(180deg,#cfe9f6 0%, hsl(182, 100%, 95%) 100%)}
-    .app{display:grid;grid-template-columns:330px 1fr;gap:20px;height:100vh;padding:20px}
+    .app{display:grid;grid-template-columns:280px 1fr;gap:20px;height:100vh;padding:20px}
     /* CORREÇÃO DO SCROLL: Adicionado max-height e min-height */
     .sidebar{
         background:var(--card);
@@ -115,7 +115,7 @@
       .blocks{grid-template-columns:1fr}
     }
 
-    /* AJUSTE: Adicionado position: relative para posicionamento do 'x' */
+    /* AJUSTE: Adicionado position: relative e estilo para o botão fechar (X) */
     dialog {
       border: none;
       border-radius: 12px;
@@ -150,6 +150,25 @@
         color: #dc3545;
     }
 
+    /* NOVO ESTILO: Garante que os botões do Summernote (como o Insert Image) fiquem azuis */
+    .note-modal-footer .btn-primary {
+        /* Remove o estilo padrão do Bootstrap/Summernote */
+        background-color: transparent !important;
+        border: none !important;
+        /* Aplica o estilo personalizado do seu .btn */
+        padding: 10px 20px;
+        border-radius: 20px;
+        color: white;
+        cursor: pointer;
+        font-weight: bold;
+        background: linear-gradient(to right, #007bff, #0056b3) !important;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: background 0.3s ease;
+    }
+    .note-modal-footer .btn-primary:hover {
+        background: linear-gradient(to right, #0056b3, #007bff) !important;
+    }
+
 
     #editModalFileList, #modalFileList {
       display: grid;
@@ -162,7 +181,7 @@
 
   <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTK+Q4lW6Z0bJ8L5F2U0C8F6E4A0S9R1B1X8E4F8A6B9P2C1N1A4H4E5G6C7D8F9G0A1" crossorigin="anonymous">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-Y3H8M2K2E2G4K4F5T5H6G7B8A9C1D0E0F1A2B3C4D5E6F7G8A9I0J1K2L3M4N5O6P7Q8R9S0T1U2V3W4X5Y6Z7" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-Y3H8M2K2E2G4K4F5T5H6G7B8A9C1D0E0F1A2B3C4D5E6F7G8A9C1D0E0F1A2B3C4D5E6F7G8A9I0J1K2L3M4N5O6P7Q8R9S0T1U2V3W4X5Y6Z7" crossorigin="anonymous"></script>
   <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
 
@@ -267,7 +286,13 @@
       if (!currentUser) return;
       const { data } = await supabase.from('pages').select('*').order('created_at',{ascending:false});
       pages = data || [];
-      activePageId = pages[0]?.id || null;
+      // tenta recuperar do localStorage
+      const savedPageId = localStorage.getItem("activePageId");
+      if (savedPageId && pages.some(p => p.id == savedPageId)) {
+        activePageId = savedPageId;
+      } else {
+        activePageId = pages[0]?.id || null;
+      }
       renderPages(); 
       await loadAllBlocks(); 
       render();
@@ -283,7 +308,11 @@
     async function deletePage(id){
       if(!confirm("Excluir página?")) return;
       await supabase.from('pages').delete().eq('id',id);
-      pages = pages.filter(p=>p.id!==id); activePageId=pages[0]?.id||null; 
+      pages = pages.filter(p=>p.id!==id); 
+      if (activePageId === id) {
+        activePageId = pages[0]?.id||null;
+        localStorage.setItem("activePageId", activePageId || "");
+      } 
       renderPages(); 
       await loadAllBlocks();
       render();
@@ -296,6 +325,7 @@
         div.textContent=p.title;
         div.onclick=()=>{
           activePageId=p.id; 
+          localStorage.setItem("activePageId", p.id);
           searchBar.value = ''; 
           render();
         };
@@ -457,6 +487,7 @@
     // EXPOR FUNÇÕES PARA O ESCOPO GLOBAL (Corrigindo o problema do onclick)
     window.closeNewBlockModal = closeNewBlockModal;
     window.closeEditModal = closeEditModal;
+
 
     // --- Funções PDF com html2pdf.js ---
     function generatePDF() {
