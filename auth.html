@@ -3,157 +3,218 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Autenticação</title>
+  <title>Autenticação - SuportAdd</title>
   <style>
-    /* Estilos baseados na imagem */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     :root {
-      --bg-color: #000d14;
-      --card-bg: #000000;
-      --border-color: #ccc;
-      --button-color: #086d84;
-      --header-bg: #00b0cbb1;
-      --text-color: #fff7f7;
-      --input-bg: #fffbe2;
+      --primary: #4F46E5;
+      --primary-dark: #4338CA;
+      --primary-light: #6366F1;
+      --bg-main: #F8FAFC;
+      --bg-card: #FFFFFF;
+      --text-primary: #1E293B;
+      --text-secondary: #64748B;
+      --border: #E2E8F0;
+      --success: #10B981;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     }
     
     body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
-      background-color: var(--bg-color);
-    }
-    
-    .header-bar {
-      width: 100%;
-      height: 60px;
-      background-color: var(--header-bg);
-      position: absolute;
-      top: 0;
-      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
     }
     
     .container {
       width: 100%;
-      max-width: 400px;
-      padding: 2.5rem;
-      background-color: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      max-width: 440px;
+      background: var(--bg-card);
+      border-radius: 16px;
+      box-shadow: var(--shadow-lg);
+      padding: 48px 40px;
+      animation: slideUp 0.4s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .logo {
       text-align: center;
-      margin-bottom: 2rem;
+      margin-bottom: 40px;
+    }
+
+    .logo-icon {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3);
+    }
+
+    .logo-icon svg {
+      width: 32px;
+      height: 32px;
+      fill: white;
     }
 
     .logo h1 {
-      font-family: 'Times New Roman', serif;
-      font-size: 40px;
-      font-weight: normal;
-      color: var(--header-bg);
-      margin: 0;
-      letter-spacing: 2px;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
     }
 
     .logo p {
       font-size: 14px;
-      color: var(--text-color);
-      margin-top: -5px;
+      color: var(--text-secondary);
+      font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 1px;
     }
     
     .form-group {
-      width: 100%;
-      margin-bottom: 1.5rem;
+      margin-bottom: 24px;
     }
     
     .form-group label {
       display: block;
-      font-size: 1rem;
-      color: var(--text-color);
-      margin-bottom: 0.5rem;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
     }
     
     .form-group input {
       width: 100%;
-      padding: 0.75rem;
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      font-size: 1rem;
-      background-color: var(--input-bg);
+      padding: 12px 16px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      color: var(--text-primary);
+      background: var(--bg-main);
+      transition: all 0.3s ease;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
     }
     
     .login-btn {
       width: 100%;
-      padding: 0.75rem;
+      padding: 14px;
       border: none;
-      border-radius: 4px;
-      font-size: 1rem;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
       cursor: pointer;
-      background-color: var(--button-color);
-      color: #fff;
+      background: var(--primary);
+      color: white;
+      transition: all 0.3s ease;
+      margin-top: 8px;
     }
     
     .login-btn:hover {
-      filter: brightness(90%);
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3);
     }
 
-    .content {
-      display: none;
+    .login-btn:active {
+      transform: translateY(0);
     }
 
     .toggle-link {
-        font-size: 0.9rem;
-        cursor: pointer;
-        color: var(--button-color);
-        text-align: center;
-        margin-top: 1rem;
+      font-size: 14px;
+      cursor: pointer;
+      color: var(--primary);
+      text-align: center;
+      margin-top: 24px;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .toggle-link:hover {
+      color: var(--primary-dark);
+      text-decoration: underline;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      margin: 32px 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .divider span {
+      padding: 0 16px;
     }
   </style>
 </head>
 <body>
-  <div class="header-bar"></div>
   <div class="container">
     <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
       <h1>SUPORT-ADD</h1>
-      <p>EXPERIÊNCIA DO CLIENTE</p>
+      <p>Experiência do Cliente</p>
     </div>
     
-    <div id="auth-form" style="width: 100%;">
-      <form id="authForm">
-        <div class="form-group">
-          <label for="email" id="emailLabel">Login:</label>
-          <input type="email" id="email" required>
-        </div>
-        <div class="form-group">
-          <label for="password">Senha:</label>
-          <input type="password" id="password" required>
-        </div>
-        <button type="submit" class="login-btn" id="submitBtn">Entrar</button>
-      </form>
-      <div class="toggle-link" id="toggleLink">Não tem uma conta? Registrar</div>
-    </div>
+    <form id="authForm">
+      <div class="form-group">
+        <label for="email" id="emailLabel">Login</label>
+        <input type="email" id="email" required placeholder="Digite seu email">
+      </div>
+      <div class="form-group">
+        <label for="password">Senha</label>
+        <input type="password" id="password" required placeholder="Digite sua senha">
+      </div>
+      <button type="submit" class="login-btn" id="submitBtn">Entrar</button>
+    </form>
     
-    <div id="auth-success" class="content">
-      <h2>Bem-vindo!</h2>
-      <p>Você está logado. Agora você pode ir para a sua página principal.</p>
-      <a href="index.html" style="text-decoration: none;"><button class="login-btn">Ir para a Página Principal</button></a>
-    </div>
+    <div class="toggle-link" id="toggleLink">Não tem uma conta? Registrar</div>
   </div>
 
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    // 🔑 Suas credenciais Supabase
     const SUPABASE_URL = "https://ybpyncfnzfrobqcuiyqr.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlicHluY2ZuemZyb2JxY3VpeXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgxMzY0MDUsImV4cCI6MjA3MzcxMjQwNX0.s_vaIyn8kDkORC2nW-aOgk_4f3ZlsGNqxjgPGFfjVBc";
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -170,11 +231,11 @@
     function toggleForm() {
       isSignIn = !isSignIn;
       if (isSignIn) {
-        emailLabel.textContent = 'Login:';
+        emailLabel.textContent = 'Login';
         submitBtn.textContent = 'Entrar';
         toggleLink.textContent = 'Não tem uma conta? Registrar';
       } else {
-        emailLabel.textContent = 'Email:';
+        emailLabel.textContent = 'Email';
         submitBtn.textContent = 'Registrar';
         toggleLink.textContent = 'Já tem uma conta? Entrar';
       }
@@ -185,22 +246,30 @@
       const email = emailInput.value;
       const password = passwordInput.value;
 
+      submitBtn.textContent = isSignIn ? 'Entrando...' : 'Registrando...';
+      submitBtn.disabled = true;
+
       if (isSignIn) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
           alert('Erro ao entrar: ' + error.message);
+          submitBtn.textContent = 'Entrar';
+          submitBtn.disabled = false;
         }
       } else {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) {
           alert('Erro ao registrar: ' + error.message);
+          submitBtn.textContent = 'Registrar';
+          submitBtn.disabled = false;
         } else {
           alert('Registro realizado com sucesso! Verifique seu e-mail para confirmar.');
+          submitBtn.textContent = 'Registrar';
+          submitBtn.disabled = false;
         }
       }
     }
 
-    // Monitora o estado de autenticação
     supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
         window.location.href = 'index.html';
